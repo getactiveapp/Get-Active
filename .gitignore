@@ -91,3 +91,7 @@ iOSInjectionProject/
 
 # macOS
 .DS_Store
+
+# Firebase/Google Services
+GoogleService-Info.plist
+**/GoogleService-Info.plist
