@@ -39,6 +39,21 @@ struct MainTabView: View {
                 UITabBar.appearance().backgroundColor = UIColor(Color.getActiveBlack)
                 UITabBar.appearance().barTintColor = UIColor(Color.getActiveBlack)
                 UITabBar.appearance().unselectedItemTintColor = .white
+                
+                // Request notification permissions and schedule notifications for liked events
+                if let userId = authManager.currentUser?.id {
+                    Task {
+                        let hasPermission = await NotificationManager.shared.requestAuthorization()
+                        if hasPermission {
+                            await MainActor.run {
+                                NotificationManager.shared.scheduleNotificationsForAllLikedEvents(
+                                    events: eventManager.events,
+                                    userId: userId
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
         .sheet(isPresented: $showingEventPost) {

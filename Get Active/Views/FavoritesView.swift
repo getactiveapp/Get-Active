@@ -104,6 +104,7 @@ struct FavoritesView: View {
                 NavigationView {
                     ChatBotView()
                         .environmentObject(authManager)
+                        .environmentObject(eventManager)
                 }
             }
             .sheet(item: $selectedEvent) { event in
@@ -118,18 +119,18 @@ struct FavoritesView: View {
                     eventManager.updateFavoriteEvents(userId: userId)
                 }
             }
-            .onChange(of: authManager.currentUser?.favoriteEventIds) { _ in
+            .onChange(of: authManager.currentUser?.favoriteEventIds) { oldValue, newValue in
                 if let userId = authManager.currentUser?.id {
                     syncFavoritesWithUser(userId: userId)
                     eventManager.updateFavoriteEvents(userId: userId)
                 }
             }
-            .onChange(of: eventManager.events) { _ in
+            .onChange(of: eventManager.events) { oldValue, newValue in
                 if let userId = authManager.currentUser?.id {
                     eventManager.updateFavoriteEvents(userId: userId)
                 }
             }
-            .onChange(of: authManager.currentUser?.id) { _ in
+            .onChange(of: authManager.currentUser?.id) { oldValue, newValue in
                 if let userId = authManager.currentUser?.id {
                     syncFavoritesWithUser(userId: userId)
                     eventManager.updateFavoriteEvents(userId: userId)

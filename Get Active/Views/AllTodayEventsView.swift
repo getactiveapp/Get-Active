@@ -164,7 +164,7 @@ struct TodayEventCard: View {
                         HStack(spacing: 4) {
                             Image(systemName: "checkmark.circle.fill")
                                 .font(.system(size: 10))
-                            Text("Going")
+                            Text("I'm Going")
                                 .font(.system(size: 10, weight: .medium))
                         }
                         .foregroundColor(.green)

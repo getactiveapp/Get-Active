@@ -15,37 +15,39 @@ struct NextDoorView: View {
                 
                 VStack(spacing: 0) {
                     // Header
-                    HStack {
-                        Spacer()
-                        
+                    ZStack {
+                        // Centered title
                         Text("Next Door")
                             .font(.system(size: 22, weight: .bold))
                             .foregroundColor(.white)
                         
-                        Spacer()
-                        
-                        // Guard Shield Icon and Profile button (top right)
-                        HStack(spacing: 12) {
-                            Button(action: {
-                                showingChatBot = true
-                            }) {
-                                Image(systemName: "shield.fill")
-                                    .font(.system(size: 24, weight: .semibold))
-                                    .foregroundColor(.getActiveRed)
-                                    .frame(width: 40, height: 40)
-                            }
+                        // Right side buttons
+                        HStack {
+                            Spacer()
                             
-                            Button(action: {
-                                showingProfile = true
-                            }) {
-                                Circle()
-                                    .fill(Color.gray.opacity(0.3))
-                                    .frame(width: 40, height: 40)
-                                    .overlay(
-                                        Text("J")
-                                            .font(.system(size: 18, weight: .semibold))
-                                            .foregroundColor(.white)
-                                    )
+                            // Guard Shield Icon and Profile button (top right)
+                            HStack(spacing: 12) {
+                                Button(action: {
+                                    showingChatBot = true
+                                }) {
+                                    Image(systemName: "shield.fill")
+                                        .font(.system(size: 24, weight: .semibold))
+                                        .foregroundColor(.getActiveRed)
+                                        .frame(width: 40, height: 40)
+                                }
+                                
+                                Button(action: {
+                                    showingProfile = true
+                                }) {
+                                    Circle()
+                                        .fill(Color.gray.opacity(0.3))
+                                        .frame(width: 40, height: 40)
+                                        .overlay(
+                                            Text("J")
+                                                .font(.system(size: 18, weight: .semibold))
+                                                .foregroundColor(.white)
+                                        )
+                                }
                             }
                         }
                     }
@@ -93,6 +95,7 @@ struct NextDoorView: View {
                 NavigationView {
                     ChatBotView()
                         .environmentObject(authManager)
+                        .environmentObject(eventManager)
                 }
             }
             .sheet(item: $selectedUniversity) { university in

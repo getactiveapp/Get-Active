@@ -27,9 +27,11 @@ struct Event: Identifiable, Codable, Hashable {
     var iconName: String?
     var createdBy: String // User ID
     var likedBy: [String] // User IDs who liked
+    var rsvpBy: [String] // User IDs who RSVP'd
     var attending: [String] // User IDs attending
     var isFeatured: Bool
     var customImages: [String]? // Array of image file names for user-uploaded images
+    var ratings: [EventRating] = [] // User ratings and feedback
     
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
@@ -39,7 +41,7 @@ struct Event: Identifiable, Codable, Hashable {
         lhs.id == rhs.id
     }
     
-    init(id: String = UUID().uuidString, title: String, description: String, date: Date, startTime: String, endTime: String, location: String, category: EventCategory, tags: [String] = [], imageName: String? = nil, backgroundColor: String = "red", iconName: String? = nil, createdBy: String, likedBy: [String] = [], attending: [String] = [], isFeatured: Bool = false, customImages: [String]? = nil) {
+    init(id: String = UUID().uuidString, title: String, description: String, date: Date, startTime: String, endTime: String, location: String, category: EventCategory, tags: [String] = [], imageName: String? = nil, backgroundColor: String = "red", iconName: String? = nil, createdBy: String, likedBy: [String] = [], rsvpBy: [String] = [], attending: [String] = [], isFeatured: Bool = false, customImages: [String]? = nil, ratings: [EventRating] = []) {
         self.id = id
         self.title = title
         self.description = description
@@ -54,9 +56,27 @@ struct Event: Identifiable, Codable, Hashable {
         self.iconName = iconName
         self.createdBy = createdBy
         self.likedBy = likedBy
+        self.rsvpBy = rsvpBy
         self.attending = attending
         self.isFeatured = isFeatured
         self.customImages = customImages
+        self.ratings = ratings
+    }
+}
+
+struct EventRating: Identifiable, Codable {
+    let id: String
+    let userId: String
+    let rating: Int // 1-5 stars
+    let feedback: String
+    let timestamp: Date
+    
+    init(id: String = UUID().uuidString, userId: String, rating: Int, feedback: String, timestamp: Date = Date()) {
+        self.id = id
+        self.userId = userId
+        self.rating = rating
+        self.feedback = feedback
+        self.timestamp = timestamp
     }
 }
 
@@ -67,5 +87,11 @@ struct EventAnalytics: Codable {
     var attendees: Int
     var shares: Int
     var aiFeedback: String
+    var ratings: [EventRating] = []
+    var averageRating: Double {
+        guard !ratings.isEmpty else { return 0.0 }
+        let sum = ratings.reduce(0) { $0 + $1.rating }
+        return Double(sum) / Double(ratings.count)
+    }
 }
 

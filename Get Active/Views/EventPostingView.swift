@@ -106,7 +106,7 @@ struct EventPostingView: View {
                                         .stroke(Color.getActiveRed, lineWidth: 1)
                                 )
                             }
-                            .onChange(of: selectedPhotoItems) { newItems in
+                            .onChange(of: selectedPhotoItems) { oldItems, newItems in
                                 Task {
                                     selectedImages.removeAll()
                                     for item in newItems {
@@ -323,10 +323,14 @@ struct EventPostingView: View {
         // Determine backgroundColor and iconName based on category
         let (backgroundColor, iconName) = getCategoryStyle(selectedCategory)
         
+        // Normalize the selected date to start of day to ensure proper date comparison
+        let calendar = Calendar.current
+        let normalizedDate = calendar.startOfDay(for: selectedDate)
+        
         let newEvent = Event(
             title: title,
             description: description,
-            date: selectedDate,
+            date: normalizedDate,
             startTime: startTime.isEmpty ? "TBD" : startTime,
             endTime: endTime.isEmpty ? "TBD" : endTime,
             location: location,
@@ -341,6 +345,12 @@ struct EventPostingView: View {
         )
         
         eventManager.events.append(newEvent)
+        
+        // Force a refresh of the event manager to update views
+        DispatchQueue.main.async {
+            eventManager.objectWillChange.send()
+        }
+        
         dismiss()
     }
 }

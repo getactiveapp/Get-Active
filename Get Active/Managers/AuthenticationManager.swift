@@ -11,7 +11,8 @@ class AuthenticationManager: ObservableObject {
             name: "Jalen Martin",
             university: "Central State University",
             year: "Senior",
-            profileImageName: "profile_jalen",
+            profileImageName: nil,
+            bio: "",
             accountType: accountType,
             friends: ["friend1", "friend2", "friend3", "friend4"],
             favoriteEventIds: [] // Will be populated after events are loaded

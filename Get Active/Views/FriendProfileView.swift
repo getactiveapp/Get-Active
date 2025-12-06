@@ -303,7 +303,7 @@ struct FriendProfileView: View {
     }
     
     private func getMutualFriendsCount() -> Int {
-        guard let currentUser = authManager.currentUser else { return 0 }
+        guard authManager.currentUser != nil else { return 0 }
         // In a real app, this would check the friend's friends list
         // For now, we'll return sample data
         return 3

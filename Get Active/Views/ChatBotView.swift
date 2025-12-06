@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ChatBotView: View {
     @StateObject private var chatManager = AIChatManager()
+    @EnvironmentObject var eventManager: EventManager
     @State private var messageText = ""
     @Environment(\.dismiss) var dismiss
     
@@ -32,6 +33,18 @@ struct ChatBotView: View {
                     }
                     
                     Spacer()
+                    
+                    // Clear conversation button
+                    if !chatManager.messages.isEmpty {
+                        Button(action: {
+                            chatManager.clearConversationHistory()
+                        }) {
+                            Image(systemName: "trash")
+                                .font(.system(size: 16))
+                                .foregroundColor(.getActiveRed)
+                                .frame(width: 44, height: 44)
+                        }
+                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 12)
@@ -67,11 +80,41 @@ struct ChatBotView: View {
                                     MessageBubble(message: message)
                                         .id(message.id)
                                 }
+                                
+                                if chatManager.isLoading {
+                                    HStack(spacing: 12) {
+                                        if chatManager.isThinking {
+                                            ProgressView()
+                                                .progressViewStyle(CircularProgressViewStyle(tint: .getActiveRed))
+                                                .scaleEffect(1.2)
+                                        } else {
+                                            ProgressView()
+                                                .progressViewStyle(CircularProgressViewStyle(tint: .getActiveRed))
+                                        }
+                                        
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text(chatManager.isThinking ? "The Guard is thinking..." : "The Guard is responding...")
+                                                .font(.system(size: 14, weight: .medium))
+                                                .foregroundColor(.white)
+                                            
+                                            if chatManager.isThinking {
+                                                Text("Taking time to provide an accurate answer")
+                                                    .font(.system(size: 12))
+                                                    .foregroundColor(.gray)
+                                            }
+                                        }
+                                        
+                                        Spacer()
+                                    }
+                                    .padding()
+                                    .background(Color.gray.opacity(0.2))
+                                    .cornerRadius(12)
+                                }
                             }
                         }
                         .padding()
                     }
-                    .onChange(of: chatManager.messages.count) { _ in
+                    .onChange(of: chatManager.messages.count) { oldCount, newCount in
                         if let lastMessage = chatManager.messages.last {
                             withAnimation {
                                 proxy.scrollTo(lastMessage.id, anchor: .bottom)
@@ -98,14 +141,18 @@ struct ChatBotView: View {
                     }) {
                         Image(systemName: "arrow.up.circle.fill")
                             .font(.system(size: 32))
-                            .foregroundColor(.getActiveRed)
+                            .foregroundColor(chatManager.isLoading || messageText.isEmpty ? .gray : .getActiveRed)
                     }
-                    .disabled(messageText.isEmpty)
+                    .disabled(messageText.isEmpty || chatManager.isLoading)
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 12)
                 .background(Color.gray.opacity(0.1))
             }
+        }
+        .onAppear {
+            // Set EventManager reference for chatbot
+            chatManager.eventManager = eventManager
         }
     }
     
@@ -145,5 +192,6 @@ struct MessageBubble: View {
 
 #Preview {
     ChatBotView()
+        .environmentObject(EventManager())
 }
 

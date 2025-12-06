@@ -74,17 +74,29 @@ struct ChatView: View {
     
     private func sendMessage() {
         guard !messageText.trimmingCharacters(in: .whitespaces).isEmpty,
-              let currentUserId = authManager.currentUser?.id else { return }
+              let currentUserId = authManager.currentUser?.id,
+              let currentUserName = authManager.currentUser?.name else { return }
+        
+        let messageToSend = messageText.trimmingCharacters(in: .whitespaces)
         
         let newMessage = ChatMessage(
             id: UUID().uuidString,
             senderId: currentUserId,
             receiverId: friendId,
-            text: messageText,
+            text: messageToSend,
             timestamp: Date()
         )
         
         messages.append(newMessage)
+        
+        // Send notification to the friend who received the message
+        NotificationManager.shared.sendMessageNotification(
+            fromUserName: currentUserName,
+            messageText: messageToSend,
+            toUserId: friendId,
+            fromUserId: currentUserId
+        )
+        
         messageText = ""
     }
     

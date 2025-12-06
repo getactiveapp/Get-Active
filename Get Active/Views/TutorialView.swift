@@ -106,7 +106,7 @@ struct TutorialView: View {
                 selectedTab = tab
             }
         }
-        .onChange(of: currentStep) { newStep in
+        .onChange(of: currentStep) { oldStep, newStep in
             // Switch tabs when needed
             if let tab = newStep.highlightTab {
                 withAnimation {

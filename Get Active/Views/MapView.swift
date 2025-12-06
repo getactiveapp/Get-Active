@@ -33,69 +33,147 @@ struct MapView: View {
         }
     }
     
+    @State private var selectedEvent: Event?
+    @State private var showingEventIndex = true
+    
     var body: some View {
         NavigationView {
-            ZStack {
+            VStack(spacing: 0) {
                 // Map with standard Apple Maps appearance using UIViewRepresentable
-                StandardMapView(region: $region, events: displayedEvents, eventManager: eventManager, authManager: authManager)
+                ZStack {
+                    StandardMapView(
+                        region: $region,
+                        events: displayedEvents,
+                        eventManager: eventManager,
+                        authManager: authManager,
+                        selectedEvent: $selectedEvent
+                    )
                     .ignoresSafeArea()
-                
-                // Filter Buttons at Bottom
-                VStack {
-                    Spacer()
                     
-                    HStack(spacing: 12) {
-                        // CSU Filter Button
-                        Button(action: {
-                            withAnimation {
-                                filterMode = .csu
-                                region = MKCoordinateRegion(
-                                    center: csuCenter,
-                                    span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
-                                )
+                    // Filter Buttons at Top
+                    VStack {
+                        HStack(spacing: 12) {
+                            // CSU Filter Button
+                            Button(action: {
+                                withAnimation {
+                                    filterMode = .csu
+                                    region = MKCoordinateRegion(
+                                        center: csuCenter,
+                                        span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                                    )
+                                }
+                            }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "building.2.fill")
+                                        .font(.system(size: 16))
+                                    Text("CSU")
+                                        .font(.system(size: 16, weight: .semibold))
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 12)
+                                .background(filterMode == .csu ? Color.getActiveRed : Color.getActiveBlack.opacity(0.8))
+                                .cornerRadius(12)
                             }
-                        }) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "building.2.fill")
-                                    .font(.system(size: 16))
-                                Text("CSU")
-                                    .font(.system(size: 16, weight: .semibold))
+                            
+                            // All Events Filter Button
+                            Button(action: {
+                                withAnimation {
+                                    filterMode = .allEvents
+                                    // Zoom out to show all events
+                                    region = MKCoordinateRegion(
+                                        center: csuCenter,
+                                        span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                                    )
+                                }
+                            }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "square.grid.2x2")
+                                        .font(.system(size: 16))
+                                    Text("All Events")
+                                        .font(.system(size: 16, weight: .semibold))
+                                    Image(systemName: "arrow.up.right")
+                                        .font(.system(size: 12))
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 12)
+                                .background(filterMode == .allEvents ? Color.getActiveRed : Color.getActiveBlack.opacity(0.8))
+                                .cornerRadius(12)
                             }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 12)
-                            .background(filterMode == .csu ? Color.getActiveRed : Color.getActiveBlack.opacity(0.8))
-                            .cornerRadius(12)
+                            
+                            Spacer()
                         }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 10)
                         
-                        // All Events Filter Button
-                        Button(action: {
-                            withAnimation {
-                                filterMode = .allEvents
-                                // Zoom out to show all events
-                                region = MKCoordinateRegion(
-                                    center: csuCenter,
-                                    span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
-                                )
-                            }
-                        }) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "square.grid.2x2")
+                        Spacer()
+                    }
+                }
+                
+                // Event Index Section
+                if showingEventIndex && !displayedEvents.isEmpty {
+                    VStack(spacing: 0) {
+                        // Header
+                        HStack {
+                            Text("Events (\(displayedEvents.count))")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(.white)
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                withAnimation {
+                                    showingEventIndex.toggle()
+                                }
+                            }) {
+                                Image(systemName: showingEventIndex ? "chevron.down" : "chevron.up")
+                                    .foregroundColor(.getActiveRed)
                                     .font(.system(size: 16))
-                                Text("All Events")
-                                    .font(.system(size: 16, weight: .semibold))
-                                Image(systemName: "arrow.up.right")
-                                    .font(.system(size: 12))
                             }
-                            .foregroundColor(.white)
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background(Color.getActiveBlack)
+                        
+                        // Event List
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(displayedEvents) { event in
+                                    EventIndexCard(event: event)
+                                        .onTapGesture {
+                                            selectedEvent = event
+                                        }
+                                }
+                            }
                             .padding(.horizontal, 20)
                             .padding(.vertical, 12)
-                            .background(filterMode == .allEvents ? Color.getActiveRed : Color.getActiveBlack.opacity(0.8))
-                            .cornerRadius(12)
+                        }
+                        .background(Color.getActiveBlack)
+                    }
+                    .frame(height: 180)
+                } else if !showingEventIndex {
+                    // Collapsed header
+                    HStack {
+                        Text("Events (\(displayedEvents.count))")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            withAnimation {
+                                showingEventIndex.toggle()
+                            }
+                        }) {
+                            Image(systemName: "chevron.up")
+                                .foregroundColor(.getActiveRed)
+                                .font(.system(size: 16))
                         }
                     }
                     .padding(.horizontal, 20)
-                    .padding(.bottom, 100) // Space for tab bar
+                    .padding(.vertical, 10)
+                    .background(Color.getActiveBlack)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -113,6 +191,12 @@ struct MapView: View {
                         center: csuCenter,
                         span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
                     )
+                }
+            }
+            .sheet(item: $selectedEvent) { event in
+                NavigationView {
+                    EventDetailView(event: event, eventManager: eventManager)
+                        .environmentObject(authManager)
                 }
             }
         }
@@ -283,7 +367,7 @@ struct StandardMapView: UIViewRepresentable {
     let events: [Event]
     @ObservedObject var eventManager: EventManager
     @ObservedObject var authManager: AuthenticationManager
-    @State private var selectedEvent: Event?
+    @Binding var selectedEvent: Event?
     
     func makeUIView(context: Context) -> MKMapView {
         let mapView = MKMapView()
@@ -356,6 +440,7 @@ struct StandardMapView: UIViewRepresentable {
     
     class Coordinator: NSObject, MKMapViewDelegate {
         var parent: StandardMapView
+        var onEventSelected: ((Event) -> Void)?
         
         init(_ parent: StandardMapView) {
             self.parent = parent
@@ -401,6 +486,10 @@ struct StandardMapView: UIViewRepresentable {
             annotationView?.image = containerView.asImage()
             annotationView?.frame = CGRect(x: 0, y: 0, width: 32, height: 32)
             
+            // Make annotation view tappable
+            annotationView?.isEnabled = true
+            annotationView?.canShowCallout = false
+            
             return annotationView
         }
         
@@ -409,9 +498,15 @@ struct StandardMapView: UIViewRepresentable {
                 return
             }
             
-            // Handle tap - this would need to be passed back to SwiftUI
-            // For now, we'll just print
-            print("Selected event: \(eventAnnotation.event.title)")
+            // Handle tap - pass event back to SwiftUI
+            DispatchQueue.main.async {
+                self.parent.selectedEvent = eventAnnotation.event
+            }
+            
+            // Deselect to allow re-selection
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                mapView.deselectAnnotation(view.annotation, animated: false)
+            }
         }
         
         private func pinColorForEvent(_ event: Event) -> UIColor {

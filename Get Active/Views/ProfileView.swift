@@ -14,9 +14,17 @@ struct ProfileView: View {
     @State private var showingFriends = false
     @State private var showingHelp = false
     @State private var showingCalendarPermission = false
+    @State private var showingAccountSettings = false
     @State private var selectedEvent: Event?
+    @State private var isRefreshing = false
+    @State private var profileImage: UIImage?
     @Environment(\.dismiss) var dismiss
     @Environment(\.openURL) var openURL
+    
+    private var mentalHealthResources: MentalHealthResources {
+        let university = authManager.currentUser?.university ?? ""
+        return MentalHealthResourcesManager.shared.getResources(for: university)
+    }
     
     var body: some View {
         NavigationView {
@@ -25,6 +33,16 @@ struct ProfileView: View {
                 
                 ScrollView {
                     VStack(spacing: 0) {
+                        // Custom refresh indicator at the top
+                        if isRefreshing {
+                            HStack {
+                                Spacer()
+                                GetActiveLogoRefreshView()
+                                    .frame(width: 50, height: 50)
+                                    .padding(.vertical, 10)
+                                Spacer()
+                            }
+                        }
                         // Header with back button
                         HStack {
                             Button(action: {
@@ -54,18 +72,35 @@ struct ProfileView: View {
                         // Profile Header with Red Background
                         ZStack {
                             Color.getActiveRed
-                                .frame(height: 300)
+                                .frame(height: (authManager.currentUser?.bio.isEmpty == false) ? 360 : 300)
                             
                             VStack(spacing: 15) {
                                 // Profile Image
-                                Circle()
-                                    .fill(Color.gray.opacity(0.3))
-                                    .frame(width: 100, height: 100)
-                                    .overlay(
-                                        Text(String((authManager.currentUser?.name.prefix(1) ?? "U")))
-                                            .font(.system(size: 40, weight: .bold))
-                                            .foregroundColor(.white)
-                                    )
+                                ZStack {
+                                    if let profileImage = profileImage {
+                                        Image(uiImage: profileImage)
+                                            .resizable()
+                                            .scaledToFill()
+                                    } else {
+                                        Circle()
+                                            .fill(Color.white.opacity(0.2))
+                                    }
+                                    
+                                    Circle()
+                                        .stroke(Color.white, lineWidth: 2)
+                                }
+                                .frame(width: 100, height: 100)
+                                .clipShape(Circle())
+                                .overlay(
+                                    // Fallback to initial if no image
+                                    Group {
+                                        if profileImage == nil {
+                                            Text(String((authManager.currentUser?.name.prefix(1) ?? "U")))
+                                                .font(.system(size: 40, weight: .bold))
+                                                .foregroundColor(.white)
+                                        }
+                                    }
+                                )
                                 
                                 // Name
                                 Text(authManager.currentUser?.name ?? "User")
@@ -94,6 +129,17 @@ struct ProfileView: View {
                                             .background(Color.white)
                                             .clipShape(Circle())
                                     }
+                                }
+                                
+                                // Bio
+                                if let bio = authManager.currentUser?.bio, !bio.isEmpty {
+                                    Text(bio)
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.white.opacity(0.9))
+                                        .multilineTextAlignment(.center)
+                                        .lineLimit(3)
+                                        .padding(.horizontal, 20)
+                                        .padding(.top, 5)
                                 }
                                 
                                 // Stats
@@ -254,7 +300,7 @@ struct ProfileView: View {
                                     color: .getActiveRed
                                 ) {
                                     // Open wellness check-in
-                                    if let url = URL(string: "https://mhanational.org/screening-tools") {
+                                    if let url = URL(string: mentalHealthResources.wellnessCheckInURL) {
                                         openURL(url)
                                     }
                                 }
@@ -265,8 +311,8 @@ struct ProfileView: View {
                                     description: "Access support and counseling services",
                                     color: .getActiveRed
                                 ) {
-                                    // Open mental health resources
-                                    if let url = URL(string: "https://www.centralstate.edu/student-life/health-services") {
+                                    // Open mental health resources - university specific
+                                    if let url = URL(string: mentalHealthResources.mentalHealthResourcesURL) {
                                         openURL(url)
                                     }
                                 }
@@ -277,8 +323,10 @@ struct ProfileView: View {
                                     description: "Connect with peer support networks",
                                     color: .getActiveRed
                                 ) {
-                                    // Show support groups
-                                    showingHelp = true
+                                    // Open support groups - university specific
+                                    if let url = URL(string: mentalHealthResources.supportGroupsURL) {
+                                        openURL(url)
+                                    }
                                 }
                                 
                                 MentalAwarenessRow(
@@ -288,7 +336,7 @@ struct ProfileView: View {
                                     color: .getActiveRed
                                 ) {
                                     // Call crisis support
-                                    if let url = URL(string: "tel:988") {
+                                    if let url = URL(string: "tel:\(mentalHealthResources.crisisSupportPhone)") {
                                         openURL(url)
                                     }
                                 }
@@ -305,6 +353,10 @@ struct ProfileView: View {
                                 .padding(.horizontal, 20)
                             
                             VStack(spacing: 0) {
+                                SettingsRow(icon: "person.circle.fill", title: "Account Settings", color: .getActiveRed) {
+                                    showingAccountSettings = true
+                                }
+                                
                                 if authManager.currentUser?.accountType == .activeMember {
                                     SettingsRow(icon: "doc.text.fill", title: "My Membership", color: .getActiveRed) {
                                         showingMembership = true
@@ -318,8 +370,11 @@ struct ProfileView: View {
                                     showingPrivacy = true
                                 }
                                 
-                                SettingsRow(icon: "trash.fill", title: "My Events (\(getMyEventsCount()))", color: .getActiveRed) {
-                                    showingMyEvents = true
+                                // Only show "My Events" for Active Members
+                                if authManager.currentUser?.accountType == .activeMember {
+                                    SettingsRow(icon: "trash.fill", title: "My Events (\(getMyEventsCount()))", color: .getActiveRed) {
+                                        showingMyEvents = true
+                                    }
                                 }
                                 
                                 SettingsRow(icon: "message.fill", title: "Messages", color: .getActiveRed) {
@@ -345,12 +400,33 @@ struct ProfileView: View {
                 }
             }
             .navigationBarHidden(true)
+            .background(
+                RefreshControlReader(isRefreshing: $isRefreshing, onRefresh: {
+                    await refreshData()
+                })
+            )
+            .onAppear {
+                loadProfileImage()
+            }
+            .onChange(of: authManager.currentUser?.profileImageName) { _, _ in
+                loadProfileImage()
+            }
+            .onChange(of: authManager.currentUser?.bio) { _, _ in
+                // Bio changes are automatically reflected since we're reading from currentUser
+            }
             .sheet(isPresented: $showingEventPost) {
                 EventPostingView(eventManager: eventManager)
             }
             .sheet(isPresented: $showingAnalytics) {
-                if let firstEvent = eventManager.events.first {
+                if let firstEvent = eventManager.events.first(where: { $0.createdBy == authManager.currentUser?.id }) {
                     AnalyticsView(eventManager: eventManager, eventId: firstEvent.id)
+                        .environmentObject(authManager)
+                } else if let firstEvent = eventManager.events.first {
+                    AnalyticsView(eventManager: eventManager, eventId: firstEvent.id)
+                        .environmentObject(authManager)
+                } else {
+                    AnalyticsView(eventManager: eventManager, eventId: "")
+                        .environmentObject(authManager)
                 }
             }
             .sheet(isPresented: $showingMembership) {
@@ -372,6 +448,14 @@ struct ProfileView: View {
             }
             .sheet(isPresented: $showingHelp) {
                 HelpSupportView()
+            }
+            .sheet(isPresented: $showingAccountSettings) {
+                AccountSettingsView()
+                    .environmentObject(authManager)
+                    .onDisappear {
+                        // Reload profile image when account settings is dismissed
+                        loadProfileImage()
+                    }
             }
             .sheet(item: $selectedEvent) { event in
                 NavigationView {
@@ -427,6 +511,67 @@ struct ProfileView: View {
             return "\(days)d \(remainingHours)h"
         } else {
             return "\(hours)h"
+        }
+    }
+    
+    private func refreshData() async {
+        isRefreshing = true
+        
+        // Refresh events
+        await MainActor.run {
+            eventManager.objectWillChange.send()
+            if let userId = authManager.currentUser?.id {
+                eventManager.updateFavoriteEvents(userId: userId)
+            }
+            // Reload profile image
+            loadProfileImage()
+        }
+        
+        // Simulate refresh delay
+        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+        
+        await MainActor.run {
+            isRefreshing = false
+        }
+    }
+    
+    private func loadProfileImage() {
+        guard let imageName = authManager.currentUser?.profileImageName else {
+            profileImage = nil
+            return
+        }
+        
+        Task {
+            if let image = await loadProfileImageFromDocuments(fileName: imageName) {
+                await MainActor.run {
+                    profileImage = image
+                }
+            } else {
+                await MainActor.run {
+                    profileImage = nil
+                }
+            }
+        }
+    }
+    
+    private func loadProfileImageFromDocuments(fileName: String) async -> UIImage? {
+        return await withCheckedContinuation { continuation in
+            Task.detached(priority: .userInitiated) {
+                let fileManager = FileManager.default
+                let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                let filePath = documentsPath.appendingPathComponent(fileName)
+                
+                do {
+                    let imageData = try Data(contentsOf: filePath)
+                    if let image = UIImage(data: imageData) {
+                        continuation.resume(returning: image)
+                    } else {
+                        continuation.resume(returning: nil)
+                    }
+                } catch {
+                    continuation.resume(returning: nil)
+                }
+            }
         }
     }
 }

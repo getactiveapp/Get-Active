@@ -205,7 +205,14 @@ struct FriendsView: View {
                                     showingChat = true
                                 },
                                 onAccept: {
-                                    // Accept friend request - move to friends list
+                                    // Accept friend request - send notification to that person
+                                    if authManager.currentUser != nil {
+                                        // Send notification to the person whose request we accepted
+                                        NotificationManager.shared.sendFriendAcceptNotification(
+                                            fromUserName: authManager.currentUser?.name ?? "Someone",
+                                            toUserId: friend.id
+                                        )
+                                    }
                                 },
                                 onDecline: {
                                     // Decline friend request - remove from requests
@@ -220,6 +227,18 @@ struct FriendsView: View {
             }
         }
         .navigationBarHidden(true)
+        .onAppear {
+            // When the Requests tab is viewed and there are friend requests,
+            // send notifications for each incoming friend request (simulating receiving them)
+            sendFriendRequestNotificationsIfNeeded()
+        }
+        .onChange(of: selectedTab) { _, newTab in
+            // When switching to Requests tab and there are friend requests,
+            // send notifications for incoming friend requests
+            if newTab == .requests {
+                sendFriendRequestNotificationsIfNeeded()
+            }
+        }
         .sheet(item: $selectedFriend) { friend in
             NavigationView {
                 FriendProfileView(friendName: friend.name, friendId: friend.id, eventManager: EventManager())
@@ -249,6 +268,23 @@ struct FriendsView: View {
             return friendRequests.count
         case .suggestions:
             return suggestions.count
+        }
+    }
+    
+    private func sendFriendRequestNotificationsIfNeeded() {
+        // When viewing the Requests tab and there are friend requests,
+        // send notifications for each incoming friend request (simulating receiving them)
+        if selectedTab == .requests && !friendRequests.isEmpty {
+            guard let currentUserId = authManager.currentUser?.id else { return }
+            
+            for request in friendRequests {
+                // Only send notification if we haven't already processed this request
+                // In a real app, you'd track which requests have been notified
+                NotificationManager.shared.sendFriendRequestNotification(
+                    fromUserName: request.name,
+                    toUserId: currentUserId
+                )
+            }
         }
     }
 }

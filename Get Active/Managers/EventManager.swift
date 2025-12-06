@@ -466,21 +466,30 @@ class EventManager: ObservableObject {
     
     func toggleFavorite(eventId: String, userId: String) {
         if let index = events.firstIndex(where: { $0.id == eventId }) {
-            if events[index].likedBy.contains(userId) {
+            let wasLiked = events[index].likedBy.contains(userId)
+            
+            if wasLiked {
+                // Unliking - only cancel notifications if user is not going
                 events[index].likedBy.removeAll { $0 == userId }
+                // Only cancel notifications if user is not going (notifications come from "I'm Going", not liking)
+                if !events[index].attending.contains(userId) {
+                    NotificationManager.shared.cancelNotifications(for: eventId, userId: userId)
+                }
             } else {
+                // Liking - don't schedule notifications here (only when user clicks "I'm Going")
                 if !events[index].likedBy.contains(userId) {
                     events[index].likedBy.append(userId)
                 }
+                // Notifications are now only scheduled when user clicks "I'm Going" after RSVP
             }
             updateFavoriteEvents(userId: userId)
         }
     }
     
     func updateFavoriteEvents(userId: String) {
-        // Only include events that are liked (not attending)
+        // Include events that are liked OR RSVP'd
         favoriteEvents = events.filter { event in
-            event.likedBy.contains(userId)
+            event.likedBy.contains(userId) || event.rsvpBy.contains(userId)
         }
         // Sort by date (upcoming events first)
         favoriteEvents.sort { $0.date < $1.date }
@@ -492,11 +501,14 @@ class EventManager: ObservableObject {
     
     func getEventsForToday() -> [Event] {
         let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
+        let now = Date()
+        let today = calendar.startOfDay(for: now)
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
+        
         return events.filter { event in
             // Normalize event date to start of day for comparison
             let eventDate = calendar.startOfDay(for: event.date)
+            // Check if event date is exactly today (between today and tomorrow)
             return eventDate >= today && eventDate < tomorrow
         }
     }
@@ -506,13 +518,22 @@ class EventManager: ObservableObject {
     }
     
     func getAllEventsSorted() -> [Event] {
-        // Sort events by date (upcoming first), then by creation time (newest first for same date)
+        // Sort events by date (upcoming first), then by creation order (newest first for same date)
+        // Events are sorted with future events first, then today's events, then past events
         return events.sorted { event1, event2 in
-            if event1.date != event2.date {
+            let calendar = Calendar.current
+            
+            let event1Date = calendar.startOfDay(for: event1.date)
+            let event2Date = calendar.startOfDay(for: event2.date)
+            
+            // If both events are on different days, sort by date (earliest first)
+            if event1Date != event2Date {
                 return event1.date < event2.date
             }
-            // If same date, newer events first (assuming events added later have later timestamps)
-            return false // Keep original order for same date
+            
+            // If same date, keep original order (newer events added later will appear later in the list)
+            // Since we're appending new events, they'll appear at the end, which is what we want for same-day events
+            return false
         }
     }
     
@@ -571,6 +592,16 @@ class EventManager: ObservableObject {
         
         // Update favorite events list
         updateFavoriteEvents(userId: userId)
+        
+        // Schedule notifications for all liked events
+        Task {
+            let hasPermission = await NotificationManager.shared.requestAuthorization()
+            if hasPermission {
+                await MainActor.run {
+                    NotificationManager.shared.scheduleNotificationsForAllLikedEvents(events: events, userId: userId)
+                }
+            }
+        }
     }
 }
 

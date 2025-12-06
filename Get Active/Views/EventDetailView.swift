@@ -7,7 +7,10 @@ struct EventDetailView: View {
     @ObservedObject var eventManager: EventManager
     @Environment(\.dismiss) var dismiss
     @State private var isLiked = false
+    @State private var hasRSVPd = false
     @State private var isGoing = false
+    @State private var isHere = false
+    @State private var showHerePopup = false
     @State private var loadedImages: [String: UIImage] = [:] // Cache for loaded images
     var isFromOtherUniversity: Bool = false // Flag to indicate if event is from another university
     
@@ -278,49 +281,115 @@ struct EventDetailView: View {
                 }
             }
             
-            // Bottom "Going" Button
-            VStack {
+            // Bottom Action Buttons
+            VStack(spacing: 12) {
                 Spacer()
+                
+                // RSVP / "I'm Going" Button
                 Button(action: {
                     if !isFromOtherUniversity {
-                        toggleGoing()
+                        if !hasRSVPd {
+                            // First click: RSVP
+                            handleRSVP()
+                        } else {
+                            // Second click: I'm Going (or undo going)
+                            toggleGoing()
+                        }
                     }
                 }) {
-                    Text(isFromOtherUniversity ? "Unable to say going" : (isGoing ? "I'm going" : "Going"))
+                    Text(buttonText)
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .frame(height: 55)
-                        .background(isFromOtherUniversity ? Color.gray.opacity(0.2) : (isGoing ? Color.getActiveRed : Color.gray.opacity(0.3)))
+                        .background(isFromOtherUniversity ? Color.gray.opacity(0.2) : (isGoing || hasRSVPd ? Color.getActiveRed : Color.gray.opacity(0.3)))
                         .cornerRadius(12)
                 }
                 .disabled(isFromOtherUniversity)
-                .padding(.horizontal, 20)
-                .padding(.bottom, 30)
+                
+                // "I'm Here!" Button - Only show 1 hour prior to event
+                if shouldShowImHereButton() {
+                    Button(action: {
+                        if !isFromOtherUniversity {
+                            isHere = true
+                            showHerePopup = true
+                        }
+                    }) {
+                        Text("I'm Here!")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 55)
+                            .background(isHere ? Color.gray.opacity(0.5) : Color.green)
+                            .cornerRadius(12)
+                    }
+                    .disabled(isFromOtherUniversity || isHere)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 30)
+            
+            // Pop-up overlay
+            if showHerePopup {
+                ZStack {
+                    Color.black.opacity(0.5)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            showHerePopup = false
+                        }
+                    
+                    VStack(spacing: 20) {
+                        // Close button
+                        HStack {
+                            Spacer()
+                            Button(action: {
+                                showHerePopup = false
+                            }) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(.gray)
+                                    .frame(width: 30, height: 30)
+                            }
+                        }
+                        
+                        // Checkmark icon
+                        ZStack {
+                            Circle()
+                                .fill(Color.gray.opacity(0.2))
+                                .frame(width: 80, height: 80)
+                            
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 40, weight: .bold))
+                                .foregroundColor(Color.gray.opacity(0.6))
+                        }
+                        
+                        // Message
+                        Text("Time to Get Active!")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundColor(.black)
+                            .multilineTextAlignment(.center)
+                        
+                        Spacer()
+                            .frame(height: 20)
+                    }
+                    .padding(30)
+                    .frame(width: 280)
+                    .background(Color.white)
+                    .cornerRadius(20)
+                    .shadow(radius: 20)
+                }
+                .transition(.opacity)
+                .zIndex(1000)
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text("Event Details")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(.white)
-            }
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button(action: {
-                    dismiss()
-                }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 18))
-                        .foregroundColor(.white)
-                        .frame(width: 44, height: 44)
-                }
-            }
-        }
+        .navigationBarBackButtonHidden(true)
         .onAppear {
             if let userId = authManager.currentUser?.id {
                 isLiked = event.likedBy.contains(userId)
                 isGoing = event.attending.contains(userId)
+                // Check if user has RSVP'd (either in rsvpBy or attending)
+                hasRSVPd = event.rsvpBy.contains(userId) || event.attending.contains(userId)
             }
             // Load images asynchronously
             loadImagesAsync()
@@ -354,22 +423,131 @@ struct EventDetailView: View {
         isLiked.toggle()
     }
     
+    private func handleRSVP() {
+        guard let userId = authManager.currentUser?.id else { return }
+        
+        // When user clicks RSVP, add them to the event's rsvpBy array
+        if let index = eventManager.events.firstIndex(where: { $0.id == event.id }) {
+            if !eventManager.events[index].rsvpBy.contains(userId) {
+                eventManager.events[index].rsvpBy.append(userId)
+            }
+            hasRSVPd = true
+            
+            // Update favorites to include RSVP'd events
+            eventManager.updateFavoriteEvents(userId: userId)
+        }
+    }
+    
     private func toggleGoing() {
         guard let userId = authManager.currentUser?.id else { return }
         
         if let index = eventManager.events.firstIndex(where: { $0.id == event.id }) {
             if eventManager.events[index].attending.contains(userId) {
+                // User is going, remove them and cancel notifications
                 eventManager.events[index].attending.removeAll { $0 == userId }
+                // Keep them in rsvpBy so event stays in favorites (user still RSVP'd)
                 isGoing = false
+                // hasRSVPd stays true since they're still RSVP'd (just not going anymore)
+                
+                // Cancel notifications when user removes themselves from going
+                NotificationManager.shared.cancelNotifications(for: event.id, userId: userId)
+                
+                // Update favorites
+                eventManager.updateFavoriteEvents(userId: userId)
             } else {
+                // User is clicking "I'm Going" after RSVP - add to attending and schedule notifications
                 if !eventManager.events[index].attending.contains(userId) {
                     eventManager.events[index].attending.append(userId)
                 }
+                // Ensure they're also in rsvpBy
+                if !eventManager.events[index].rsvpBy.contains(userId) {
+                    eventManager.events[index].rsvpBy.append(userId)
+                }
                 isGoing = true
+                
+                // Schedule notifications when user confirms "I'm Going"
+                NotificationManager.shared.scheduleNotification(for: eventManager.events[index], userId: userId)
             }
-            // Note: updateFavoriteEvents is called but won't affect favorites since favorites only include liked events, not attending events
             eventManager.updateFavoriteEvents(userId: userId)
         }
+    }
+    
+    private var buttonText: String {
+        if isFromOtherUniversity {
+            return "Unable to RSVP"
+        } else if isGoing {
+            return "I'm Going"
+        } else if hasRSVPd {
+            return "I'm Going"
+        } else {
+            return "RSVP"
+        }
+    }
+    
+    private func shouldShowImHereButton() -> Bool {
+        // Only show if event is from user's university
+        if isFromOtherUniversity {
+            return false
+        }
+        
+        let now = Date()
+        let calendar = Calendar.current
+        
+        // Combine event date and start time
+        let eventStartDate = combineDateAndTime(event.date, timeString: event.startTime)
+        
+        // Combine event date and end time
+        let eventEndDate = combineDateAndTime(event.date, timeString: event.endTime)
+        
+        // Calculate 1 hour before event start
+        guard let oneHourBefore = calendar.date(byAdding: .hour, value: -1, to: eventStartDate) else {
+            return false
+        }
+        
+        // Show button if current time is between 1 hour before event start and event end time
+        return now >= oneHourBefore && now <= eventEndDate
+    }
+    
+    private func combineDateAndTime(_ date: Date, timeString: String) -> Date {
+        let calendar = Calendar.current
+        let dateComponents = calendar.dateComponents([.year, .month, .day], from: date)
+        
+        // Parse time string (e.g., "3:00 PM")
+        let timeComponents = parseTimeString(timeString)
+        
+        var components = DateComponents()
+        components.year = dateComponents.year
+        components.month = dateComponents.month
+        components.day = dateComponents.day
+        components.hour = timeComponents.hour
+        components.minute = timeComponents.minute
+        
+        return calendar.date(from: components) ?? date
+    }
+    
+    private func parseTimeString(_ timeString: String) -> (hour: Int, minute: Int) {
+        let trimmed = timeString.trimmingCharacters(in: .whitespaces)
+        let isPM = trimmed.uppercased().contains("PM")
+        
+        let timePart = trimmed.replacingOccurrences(of: "AM", with: "")
+            .replacingOccurrences(of: "PM", with: "")
+            .replacingOccurrences(of: "am", with: "")
+            .replacingOccurrences(of: "pm", with: "")
+            .trimmingCharacters(in: .whitespaces)
+        
+        let components = timePart.split(separator: ":")
+        guard components.count >= 1 else { return (12, 0) }
+        
+        var hour = Int(components[0]) ?? 12
+        let minute = components.count > 1 ? Int(components[1]) ?? 0 : 0
+        
+        if isPM && hour != 12 {
+            hour += 12
+        } else if !isPM && hour == 12 {
+            hour = 0
+        }
+        
+        return (hour, minute)
     }
     
     private func backgroundColorForEvent(_ event: Event) -> Color {

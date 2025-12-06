@@ -31,9 +31,10 @@ struct MyEventsView: View {
                     }
                 } else {
                     ScrollView {
-                        VStack(spacing: 15) {
+                            VStack(spacing: 15) {
                             ForEach(myEvents) { event in
                                 MyEventCard(event: event, eventManager: eventManager)
+                                    .environmentObject(authManager)
                             }
                         }
                         .padding(.horizontal, 20)
@@ -62,6 +63,8 @@ struct MyEventsView: View {
 struct MyEventCard: View {
     let event: Event
     @ObservedObject var eventManager: EventManager
+    @EnvironmentObject var authManager: AuthenticationManager
+    @State private var showingDeleteConfirmation = false
     
     var body: some View {
         HStack(spacing: 12) {
@@ -90,10 +93,47 @@ struct MyEventCard: View {
                     .font(.system(size: 12))
                     .foregroundColor(.gray)
             }
+            
+            Button(action: {
+                showingDeleteConfirmation = true
+            }) {
+                Image(systemName: "trash")
+                    .font(.system(size: 18))
+                    .foregroundColor(.getActiveRed)
+            }
         }
         .padding()
         .background(Color.gray.opacity(0.1))
         .cornerRadius(12)
+        .alert("Delete Event", isPresented: $showingDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                deleteEvent()
+            }
+        } message: {
+            Text("Are you sure you want to delete \"\(event.title)\"? This action cannot be undone.")
+        }
+    }
+    
+    private func deleteEvent() {
+        // Remove event from eventManager
+        eventManager.events.removeAll { $0.id == event.id }
+        
+        // Delete associated image files
+        if let customImages = event.customImages {
+            let fileManager = FileManager.default
+            let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            
+            for imageName in customImages {
+                let filePath = documentsPath.appendingPathComponent(imageName)
+                try? fileManager.removeItem(at: filePath)
+            }
+        }
+        
+        // Cancel any pending notifications for this event
+        if let userId = authManager.currentUser?.id {
+            NotificationManager.shared.cancelNotifications(for: event.id, userId: userId)
+        }
     }
     
     private func formatDate(_ date: Date) -> String {

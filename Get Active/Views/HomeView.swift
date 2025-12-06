@@ -9,6 +9,7 @@ struct HomeView: View {
     @State private var showingChatBot = false
     @State private var showingAllTodayEvents = false
     @State private var selectedEvent: Event?
+    @State private var isRefreshing = false
     
     var body: some View {
         NavigationView {
@@ -17,6 +18,17 @@ struct HomeView: View {
                 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 25) {
+                        // Custom refresh indicator at the top
+                        if isRefreshing {
+                            HStack {
+                                Spacer()
+                                GetActiveLogoRefreshView()
+                                    .frame(width: 50, height: 50)
+                                    .padding(.vertical, 10)
+                                Spacer()
+                            }
+                        }
+                        
                         // Header
                         ZStack {
                             // Centered title
@@ -145,6 +157,11 @@ struct HomeView: View {
                 }
             }
             .navigationBarHidden(true)
+            .background(
+                RefreshControlReader(isRefreshing: $isRefreshing, onRefresh: {
+                    await refreshData()
+                })
+            )
             .sheet(isPresented: $showingProfile) {
                 ProfileView()
                     .environmentObject(authManager)
@@ -153,6 +170,7 @@ struct HomeView: View {
                 NavigationView {
                     ChatBotView()
                         .environmentObject(authManager)
+                        .environmentObject(eventManager)
                 }
             }
             .sheet(item: $selectedEvent) { event in
@@ -171,6 +189,28 @@ struct HomeView: View {
         }
     }
     
+    private func refreshData() async {
+        isRefreshing = true
+        
+        // Refresh events and friend activities
+        await MainActor.run {
+            eventManager.objectWillChange.send()
+            friendActivityManager.objectWillChange.send()
+            
+            // Reload events
+            if let userId = authManager.currentUser?.id {
+                eventManager.updateFavoriteEvents(userId: userId)
+            }
+        }
+        
+        // Simulate refresh delay
+        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+        
+        await MainActor.run {
+            isRefreshing = false
+        }
+    }
+    
     private func formatTime(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "h:mm:ss a"
@@ -184,14 +224,32 @@ struct FeaturedEventCard: View {
     @EnvironmentObject var authManager: AuthenticationManager
     let userId: String
     var onFavoriteToggle: (() -> Void)? = nil
+    @State private var loadedImage: UIImage?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ZStack {
-                // Background color based on event
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(backgroundColorForEvent(event))
-                    .frame(width: 280, height: 200)
+                // Show image if available, otherwise show background color with icon
+                if let loadedImage = loadedImage {
+                    Image(uiImage: loadedImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 280, height: 200)
+                        .clipped()
+                        .overlay(
+                            // Dark overlay for text readability
+                            LinearGradient(
+                                gradient: Gradient(colors: [Color.clear, Color.black.opacity(0.5)]),
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                } else {
+                    // Background color based on event
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(backgroundColorForEvent(event))
+                        .frame(width: 280, height: 200)
+                }
                 
                 VStack {
                     HStack {
@@ -231,8 +289,8 @@ struct FeaturedEventCard: View {
                     
                     Spacer()
                     
-                    // Icon/Emoji centered at top
-                    if let iconName = event.iconName {
+                    // Icon/Emoji centered at top (only if no image)
+                    if loadedImage == nil, let iconName = event.iconName {
                         Image(systemName: iconName)
                             .font(.system(size: 50))
                             .foregroundColor(.white)
@@ -243,6 +301,10 @@ struct FeaturedEventCard: View {
                 }
             }
             .frame(width: 280, height: 200)
+            .cornerRadius(16)
+            .onAppear {
+                loadEventImage()
+            }
             
             VStack(alignment: .leading, spacing: 8) {
                 Text(event.title)
@@ -303,6 +365,43 @@ struct FeaturedEventCard: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "M/d/yyyy"
         return formatter.string(from: date)
+    }
+    
+    private func loadEventImage() {
+        // Load first image from customImages if available
+        guard let customImages = event.customImages, !customImages.isEmpty else {
+            return
+        }
+        
+        Task {
+            let imageName = customImages[0]
+            if let image = await loadImageFromDocumentsAsync(fileName: imageName) {
+                await MainActor.run {
+                    self.loadedImage = image
+                }
+            }
+        }
+    }
+    
+    private func loadImageFromDocumentsAsync(fileName: String) async -> UIImage? {
+        return await withCheckedContinuation { continuation in
+            Task.detached(priority: .userInitiated) {
+                let fileManager = FileManager.default
+                let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                let filePath = documentsPath.appendingPathComponent(fileName)
+                
+                do {
+                    let imageData = try Data(contentsOf: filePath)
+                    if let image = UIImage(data: imageData) {
+                        continuation.resume(returning: image)
+                    } else {
+                        continuation.resume(returning: nil)
+                    }
+                } catch {
+                    continuation.resume(returning: nil)
+                }
+            }
+        }
     }
 }
 
@@ -472,7 +571,7 @@ struct FriendActivityRow: View {
             HStack(spacing: 8) {
                 if activity.activityType == .going {
                     Button(action: {
-                        // Stop propagation to parent tap gesture
+                        // Join them - Open event detail so user can like and RSVP
                         if let event = eventManager.events.first(where: { $0.id == activity.eventId }) {
                             selectedEvent = event
                         }
@@ -486,11 +585,6 @@ struct FriendActivityRow: View {
                             .cornerRadius(8)
                     }
                     .buttonStyle(PlainButtonStyle())
-                    .highPriorityGesture(TapGesture().onEnded {
-                        if let event = eventManager.events.first(where: { $0.id == activity.eventId }) {
-                            selectedEvent = event
-                        }
-                    })
                 }
                 
                 Button(action: {
@@ -507,6 +601,9 @@ struct FriendActivityRow: View {
                         )
                 }
                 .buttonStyle(PlainButtonStyle())
+            }
+            .onTapGesture {
+                // Prevent parent tap gesture from firing when buttons are tapped
             }
         }
         .padding(.horizontal, 16)
@@ -548,25 +645,35 @@ struct AllEventCard: View {
     @EnvironmentObject var authManager: AuthenticationManager
     let userId: String
     var onFavoriteToggle: (() -> Void)? = nil
+    @State private var loadedImage: UIImage?
     
     var body: some View {
         HStack(spacing: 15) {
-            // Event Icon/Color
+            // Event Image or Icon/Color
             ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(backgroundColorForEvent(event))
-                    .frame(width: 70, height: 70)
-                
-                if let iconName = event.iconName {
-                    Image(systemName: iconName)
-                        .font(.system(size: 28))
-                        .foregroundColor(.white)
+                if let loadedImage = loadedImage {
+                    Image(uiImage: loadedImage)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 70, height: 70)
+                        .clipped()
                 } else {
-                    Image(systemName: "calendar")
-                        .font(.system(size: 28))
-                        .foregroundColor(.white)
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(backgroundColorForEvent(event))
+                        .frame(width: 70, height: 70)
+                    
+                    if let iconName = event.iconName {
+                        Image(systemName: iconName)
+                            .font(.system(size: 28))
+                            .foregroundColor(.white)
+                    } else {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 28))
+                            .foregroundColor(.white)
+                    }
                 }
             }
+            .cornerRadius(12)
             
             VStack(alignment: .leading, spacing: 8) {
                 Text(event.title)
@@ -641,6 +748,46 @@ struct AllEventCard: View {
         .padding()
         .background(Color.gray.opacity(0.1))
         .cornerRadius(12)
+        .onAppear {
+            loadEventImage()
+        }
+    }
+    
+    private func loadEventImage() {
+        // Load first image from customImages if available
+        guard let customImages = event.customImages, !customImages.isEmpty else {
+            return
+        }
+        
+        Task {
+            let imageName = customImages[0]
+            if let image = await loadImageFromDocumentsAsync(fileName: imageName) {
+                await MainActor.run {
+                    self.loadedImage = image
+                }
+            }
+        }
+    }
+    
+    private func loadImageFromDocumentsAsync(fileName: String) async -> UIImage? {
+        return await withCheckedContinuation { continuation in
+            Task.detached(priority: .userInitiated) {
+                let fileManager = FileManager.default
+                let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                let filePath = documentsPath.appendingPathComponent(fileName)
+                
+                do {
+                    let imageData = try Data(contentsOf: filePath)
+                    if let image = UIImage(data: imageData) {
+                        continuation.resume(returning: image)
+                    } else {
+                        continuation.resume(returning: nil)
+                    }
+                } catch {
+                    continuation.resume(returning: nil)
+                }
+            }
+        }
     }
     
     private func backgroundColorForEvent(_ event: Event) -> Color {
