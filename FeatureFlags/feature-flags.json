@@ -1,0 +1,8 @@
+{
+  "next_door_enabled": false,
+  "friend_finder_enabled": true,
+  "map_enabled": true,
+  "favorites_enabled": true,
+  "analytics_enabled": true,
+  "chatbot_enabled": true
+}
