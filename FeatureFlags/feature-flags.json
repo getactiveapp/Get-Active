@@ -1,5 +1,5 @@
 {
-  "next_door_enabled": true,
+  "next_door_enabled": false,
   "friend_finder_enabled": true,
   "map_enabled": true,
   "favorites_enabled": true,
