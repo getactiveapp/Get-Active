@@ -28,7 +28,19 @@ struct Get_ActiveApp: App {
             return // Already configured
         }
         
-        // Try to configure from environment variables
+        // Priority 1: Check EmailConfig file (for local development)
+        if let configKey = EmailConfig.sendGridAPIKey, !configKey.isEmpty {
+            emailService.configure(
+                provider: .sendGrid,
+                apiKey: configKey,
+                fromEmail: EmailConfig.fromEmail,
+                fromName: EmailConfig.fromName
+            )
+            print("✅ Email service configured from EmailConfig.swift")
+            return
+        }
+        
+        // Priority 2: Try to configure from environment variables
         if let sendGridKey = ProcessInfo.processInfo.environment["SENDGRID_API_KEY"], !sendGridKey.isEmpty {
             let fromEmail = ProcessInfo.processInfo.environment["FROM_EMAIL"] ?? "noreply@getactive.app"
             let fromName = ProcessInfo.processInfo.environment["FROM_NAME"] ?? "Get Active"
@@ -57,7 +69,7 @@ struct Get_ActiveApp: App {
             return
         }
         
-        // If no environment variables, check Keychain for saved configuration
+        // Priority 3: If no environment variables, check Keychain for saved configuration
         if let savedKey = SecureKeyManager.shared.getEmailAPIKey(), !savedKey.isEmpty {
             // Keychain has the key, but we need to determine provider
             // Default to SendGrid if key starts with SG.
@@ -76,6 +88,6 @@ struct Get_ActiveApp: App {
         }
         
         // If still not configured, log a warning
-        print("⚠️ Email service not configured. Set SENDGRID_API_KEY environment variable or configure in app settings.")
+        print("⚠️ Email service not configured. Set SENDGRID_API_KEY environment variable or configure in EmailConfig.swift")
     }
 }
