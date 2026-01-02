@@ -19,6 +19,11 @@ class EmailService {
     private var fromEmail: String = "noreply@getactive.app"
     private var fromName: String = "Get Active"
     
+    /// Check if email service is configured
+    var isConfigured: Bool {
+        return apiKey != nil && !apiKey!.isEmpty
+    }
+    
     private init() {
         // Load configuration from environment or Keychain
         loadConfiguration()
@@ -33,8 +38,18 @@ class EmailService {
         self.fromEmail = fromEmail
         self.fromName = fromName
         
-        // Save API key to Keychain
-        SecureKeyManager.shared.saveOpenAIAPIKey(apiKey) // Reusing Keychain for email API key storage
+        // Save API key to Keychain with separate key
+        saveEmailAPIKey(apiKey)
+    }
+    
+    /// Save email API key to Keychain
+    private func saveEmailAPIKey(_ key: String) {
+        SecureKeyManager.shared.saveEmailAPIKey(key)
+    }
+    
+    /// Get email API key from Keychain
+    private func getEmailAPIKey() -> String? {
+        return SecureKeyManager.shared.getEmailAPIKey()
     }
     
     /// Load configuration from environment or Keychain
@@ -43,16 +58,30 @@ class EmailService {
         if let apiKey = ProcessInfo.processInfo.environment["SENDGRID_API_KEY"], !apiKey.isEmpty {
             self.apiKey = apiKey
             self.provider = .sendGrid
+            // Save to Keychain for future use
+            saveEmailAPIKey(apiKey)
+        } else if let apiKey = ProcessInfo.processInfo.environment["MAILGUN_API_KEY"], !apiKey.isEmpty {
+            self.apiKey = apiKey
+            self.provider = .mailgun
+            saveEmailAPIKey(apiKey)
         } else if let apiKey = ProcessInfo.processInfo.environment["AWS_SES_ACCESS_KEY"], !apiKey.isEmpty {
             self.apiKey = apiKey
             self.provider = .awsSES
-        } else if let apiKey = SecureKeyManager.shared.getOpenAIAPIKey() {
-            // Fallback: check if email API key is stored (you might want a separate keychain key)
+            saveEmailAPIKey(apiKey)
+        } else if let apiKey = getEmailAPIKey() {
+            // Load from Keychain
             self.apiKey = apiKey
+            // Provider is already set to .sendGrid by default
         }
         
+        // Load from email from environment
         if let email = ProcessInfo.processInfo.environment["FROM_EMAIL"], !email.isEmpty {
             self.fromEmail = email
+        }
+        
+        // Load from name from environment
+        if let name = ProcessInfo.processInfo.environment["FROM_NAME"], !name.isEmpty {
+            self.fromName = name
         }
     }
     

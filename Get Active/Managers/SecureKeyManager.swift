@@ -80,6 +80,21 @@ class SecureKeyManager {
         delete("openai_api_key")
     }
     
+    /// Save Email API key securely
+    func saveEmailAPIKey(_ key: String) -> Bool {
+        return save(key, forKey: "email_api_key")
+    }
+    
+    /// Get Email API key
+    func getEmailAPIKey() -> String? {
+        return get("email_api_key")
+    }
+    
+    /// Delete Email API key
+    func deleteEmailAPIKey() {
+        delete("email_api_key")
+    }
+    
     // MARK: - Authentication Tokens
     
     /// Save authentication token (JWT)
@@ -151,6 +166,7 @@ class SecureKeyManager {
     /// Clear all stored keys (for logout)
     func clearAll() {
         deleteOpenAIAPIKey()
+        deleteEmailAPIKey()
         deleteAuthToken()
         deleteRefreshToken()
         delete2FACode()
