@@ -9,16 +9,15 @@ struct NextDoorView: View {
     @State private var selectedUniversity: University?
     
     var body: some View {
-        NavigationView {
-            ZStack {
-                Color.getActiveBlack.ignoresSafeArea()
-                
-                VStack(spacing: 0) {
+        ZStack {
+            Color.getActiveBlack.ignoresSafeArea()
+            
+            VStack(spacing: 0) {
                     // Header
                     ZStack {
                         // Centered title
                         Text("Next Door")
-                            .font(.system(size: 22, weight: .bold))
+                            .font(.system(size: DeviceSize.titleFontSize, weight: .bold))
                             .foregroundColor(.white)
                         
                         // Right side buttons
@@ -26,14 +25,14 @@ struct NextDoorView: View {
                             Spacer()
                             
                             // Guard Shield Icon and Profile button (top right)
-                            HStack(spacing: 12) {
+                            HStack(spacing: DeviceSize.isPad ? 16 : 12) {
                                 Button(action: {
                                     showingChatBot = true
                                 }) {
                                     Image(systemName: "shield.fill")
-                                        .font(.system(size: 24, weight: .semibold))
+                                        .font(.system(size: DeviceSize.isPad ? 28 : 24, weight: .semibold))
                                         .foregroundColor(.getActiveRed)
-                                        .frame(width: 40, height: 40)
+                                        .frame(width: DeviceSize.isPad ? 48 : 40, height: DeviceSize.isPad ? 48 : 40)
                                 }
                                 
                                 Button(action: {
@@ -41,52 +40,68 @@ struct NextDoorView: View {
                                 }) {
                                     Circle()
                                         .fill(Color.gray.opacity(0.3))
-                                        .frame(width: 40, height: 40)
+                                        .frame(width: DeviceSize.isPad ? 48 : 40, height: DeviceSize.isPad ? 48 : 40)
                                         .overlay(
                                             Text("J")
-                                                .font(.system(size: 18, weight: .semibold))
+                                                .font(.system(size: DeviceSize.isPad ? 22 : 18, weight: .semibold))
                                                 .foregroundColor(.white)
                                         )
                                 }
                             }
                         }
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 10)
+                    .padding(.horizontal, DeviceSize.horizontalPadding)
+                    .padding(.top, DeviceSize.isPad ? 20 : 10)
                     
                     // Main Content
                     ScrollView {
                         VStack(alignment: .leading, spacing: 20) {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Nearby Universities")
-                                    .font(.system(size: 28, weight: .bold))
+                                    .font(.system(size: DeviceSize.isPad ? 32 : 28, weight: .bold))
                                     .foregroundColor(.white)
                                 
                                 Text("Discover events at neighboring campuses")
-                                    .font(.system(size: 16))
+                                    .font(.system(size: DeviceSize.bodyFontSize))
                                     .foregroundColor(.gray)
                             }
-                            .padding(.horizontal, 20)
-                            .padding(.top, 10)
+                            .padding(.horizontal, DeviceSize.horizontalPadding)
+                            .padding(.top, DeviceSize.isPad ? 20 : 10)
                             
-                            // University List
-                            VStack(spacing: 12) {
-                                ForEach(universityManager.nearbyUniversities) { university in
-                                    Button(action: {
-                                        selectedUniversity = university
-                                    }) {
-                                        UniversityCard(university: university)
+                            // University List - Use grid on iPad
+                            if DeviceSize.isPad {
+                                LazyVGrid(columns: DeviceSize.adaptiveColumns(minWidth: 350), spacing: 20) {
+                                    ForEach(universityManager.nearbyUniversities) { university in
+                                        Button(action: {
+                                            selectedUniversity = university
+                                        }) {
+                                            UniversityCard(university: university)
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
                                     }
-                                    .buttonStyle(PlainButtonStyle())
                                 }
+                                .padding(.horizontal, DeviceSize.horizontalPadding)
+                                .padding(.top, 20)
+                                .padding(.bottom, 100)
+                            } else {
+                                VStack(spacing: 12) {
+                                    ForEach(universityManager.nearbyUniversities) { university in
+                                        Button(action: {
+                                            selectedUniversity = university
+                                        }) {
+                                            UniversityCard(university: university)
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
+                                    }
+                                }
+                                .padding(.horizontal, DeviceSize.horizontalPadding)
+                                .padding(.top, 20)
+                                .padding(.bottom, 100)
                             }
-                            .padding(.horizontal, 20)
-                            .padding(.top, 20)
                         }
                     }
                 }
             }
-            .navigationBarHidden(true)
             .sheet(isPresented: $showingProfile) {
                 ProfileView()
                     .environmentObject(authManager)
@@ -103,7 +118,6 @@ struct NextDoorView: View {
                     UniversityEventsView(university: university, eventManager: eventManager)
                         .environmentObject(authManager)
                 }
-            }
         }
     }
 }

@@ -288,13 +288,7 @@ struct EventDetailView: View {
                 // RSVP / "I'm Going" Button
                 Button(action: {
                     if !isFromOtherUniversity {
-                        if !hasRSVPd {
-                            // First click: RSVP
-                            handleRSVP()
-                        } else {
-                            // Second click: I'm Going (or undo going)
-                            toggleGoing()
-                        }
+                        toggleRSVP()
                     }
                 }) {
                     Text(buttonText)
@@ -302,7 +296,7 @@ struct EventDetailView: View {
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .frame(height: 55)
-                        .background(isFromOtherUniversity ? Color.gray.opacity(0.2) : (isGoing || hasRSVPd ? Color.getActiveRed : Color.gray.opacity(0.3)))
+                        .background(isFromOtherUniversity ? Color.gray.opacity(0.2) : (hasRSVPd ? Color.getActiveRed : Color.gray.opacity(0.3)))
                         .cornerRadius(12)
                 }
                 .disabled(isFromOtherUniversity)
@@ -387,9 +381,9 @@ struct EventDetailView: View {
         .onAppear {
             if let userId = authManager.currentUser?.id {
                 isLiked = event.likedBy.contains(userId)
+                // Check if user has RSVP'd
+                hasRSVPd = event.rsvpBy.contains(userId)
                 isGoing = event.attending.contains(userId)
-                // Check if user has RSVP'd (either in rsvpBy or attending)
-                hasRSVPd = event.rsvpBy.contains(userId) || event.attending.contains(userId)
             }
             // Load images asynchronously
             loadImagesAsync()
@@ -423,51 +417,50 @@ struct EventDetailView: View {
         isLiked.toggle()
     }
     
-    private func handleRSVP() {
-        guard let userId = authManager.currentUser?.id else { return }
-        
-        // When user clicks RSVP, add them to the event's rsvpBy array
-        if let index = eventManager.events.firstIndex(where: { $0.id == event.id }) {
-            if !eventManager.events[index].rsvpBy.contains(userId) {
-                eventManager.events[index].rsvpBy.append(userId)
-            }
-            hasRSVPd = true
-            
-            // Update favorites to include RSVP'd events
-            eventManager.updateFavoriteEvents(userId: userId)
-        }
-    }
-    
-    private func toggleGoing() {
+    private func toggleRSVP() {
         guard let userId = authManager.currentUser?.id else { return }
         
         if let index = eventManager.events.firstIndex(where: { $0.id == event.id }) {
-            if eventManager.events[index].attending.contains(userId) {
-                // User is going, remove them and cancel notifications
+            if hasRSVPd {
+                // User has RSVP'd, remove RSVP
+                eventManager.events[index].rsvpBy.removeAll { $0 == userId }
                 eventManager.events[index].attending.removeAll { $0 == userId }
-                // Keep them in rsvpBy so event stays in favorites (user still RSVP'd)
+                hasRSVPd = false
                 isGoing = false
-                // hasRSVPd stays true since they're still RSVP'd (just not going anymore)
                 
-                // Cancel notifications when user removes themselves from going
+                // Cancel notifications
                 NotificationManager.shared.cancelNotifications(for: event.id, userId: userId)
                 
-                // Update favorites
-                eventManager.updateFavoriteEvents(userId: userId)
-            } else {
-                // User is clicking "I'm Going" after RSVP - add to attending and schedule notifications
-                if !eventManager.events[index].attending.contains(userId) {
-                    eventManager.events[index].attending.append(userId)
+                // Remove from favorites
+                if var user = authManager.currentUser {
+                    user.favoriteEventIds.removeAll { $0 == event.id }
+                    authManager.currentUser = user
                 }
-                // Ensure they're also in rsvpBy
+            } else {
+                // User is RSVP'ing - add to rsvpBy and attending
                 if !eventManager.events[index].rsvpBy.contains(userId) {
                     eventManager.events[index].rsvpBy.append(userId)
                 }
+                if !eventManager.events[index].attending.contains(userId) {
+                    eventManager.events[index].attending.append(userId)
+                }
+                hasRSVPd = true
                 isGoing = true
                 
-                // Schedule notifications when user confirms "I'm Going"
-                NotificationManager.shared.scheduleNotification(for: eventManager.events[index], userId: userId)
+                // Schedule notifications with user's preference
+                let advanceMinutes = authManager.currentUser?.notificationAdvanceMinutes ?? 30
+                NotificationManager.shared.scheduleNotification(for: eventManager.events[index], userId: userId, advanceMinutes: advanceMinutes)
+                
+                // Add to favorites
+                if var user = authManager.currentUser {
+                    if !user.favoriteEventIds.contains(event.id) {
+                        user.favoriteEventIds.append(event.id)
+                    }
+                    authManager.currentUser = user
+                }
             }
+            
+            // Update favorites list
             eventManager.updateFavoriteEvents(userId: userId)
         }
     }
@@ -475,8 +468,6 @@ struct EventDetailView: View {
     private var buttonText: String {
         if isFromOtherUniversity {
             return "Unable to RSVP"
-        } else if isGoing {
-            return "I'm Going"
         } else if hasRSVPd {
             return "I'm Going"
         } else {

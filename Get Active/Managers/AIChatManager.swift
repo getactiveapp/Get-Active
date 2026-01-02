@@ -139,7 +139,13 @@ class AIChatManager: ObservableObject {
            - Professional but warm and friendly
            - Well-reasoned and accurate
         
-        5. Vary your responses naturally - don't repeat the same phrases. Use different wording and approaches each time.
+        5. RESPONSE VARIATION - CRITICAL:
+           - NEVER repeat the exact same response twice, even for similar questions
+           - Use completely different wording, structure, and examples each time
+           - Vary your sentence length, tone, and communication style
+           - Come up with fresh analogies, explanations, and approaches
+           - Show creativity in how you express ideas
+           - The user should never feel like they're getting canned responses
         
         6. ACCURACY AND QUALITY:
            - Take your time to provide accurate, thoughtful answers
@@ -147,34 +153,102 @@ class AIChatManager: ObservableObject {
            - Double-check facts when providing information
            - Provide sources or context when helpful
         
-        7. IMPORTANT - You have access to real-time event and campus information:
+        7. GET ACTIVE APP KNOWLEDGE - You are an expert on the Get Active app:
+           - Home Tab: Shows featured events, friends' activities, and events happening today
+           - Next Door Tab: Shows events from nearby universities within an hour's drive
+           - Map Tab: Displays all events on an interactive map with clickable pins
+           - Favorites Tab: Shows events the user has liked or RSVP'd to
+           - Profile Tab: User's profile, settings, analytics, and mental health resources
+           - Event Features: Users can like events, RSVP to events, mark "I'm Here!" when arriving
+           - Notifications: Users get notified 1 hour before events they're attending, and when events start
+           - Calendar Integration: Users can link events to their device calendar
+           - Friend Activities: See what friends are going to and liked
+           - Event Categories: Academic, Technology, Party, Mental Health, Vendor, Club, Career, Prayer, Other
+           - RSVP System: Users RSVP first, then confirm "I'm Going" which triggers notifications
+           - Event Rating: After events end, users can rate events 1-5 stars and provide feedback
+           - Analytics: Event hosts can see views, likes, attendees, ratings, and AI-generated feedback
+           - Mental Health Resources: Links to university-specific mental health support
+           - Event Creation: Active members can create and post events with images from camera roll
+        
+        8. IMPORTANT - You have access to ALL event and campus information:
         """
         
         var prompt = basePrompt
         
-        // Add current events information
+        // Add ALL events information (past, current, and future)
         if let eventManager = eventManager {
-            let events = eventManager.getAllEventsSorted()
+            let allEvents = eventManager.getAllEventsSorted()
             let now = Date()
+            let calendar = Calendar.current
             
-            let upcomingEvents = events.filter { $0.date >= now }.prefix(10)
+            // Separate events by time period
+            let pastEvents = allEvents.filter { calendar.startOfDay(for: $0.date) < calendar.startOfDay(for: now) }
+            let todayEvents = allEvents.filter { calendar.isDateInToday($0.date) }
+            let upcomingEvents = allEvents.filter { calendar.startOfDay(for: $0.date) > calendar.startOfDay(for: now) }
             
-            if !upcomingEvents.isEmpty {
-                prompt += "\n\nCURRENT EVENTS ON CAMPUS:\n"
-                for event in upcomingEvents {
-                    let dateFormatter = DateFormatter()
-                    dateFormatter.dateFormat = "MMMM d, yyyy"
-                    let dateStr = dateFormatter.string(from: event.date)
-                    
-                    prompt += """
-                    • \(event.title)
-                      Date: \(dateStr)
-                      Time: \(event.startTime) - \(event.endTime)
-                      Location: \(event.location)
-                      Description: \(event.description)
-                      Category: \(event.category.rawValue)
-                    \n
-                    """
+            if !allEvents.isEmpty {
+                prompt += "\n\n=== ALL GET ACTIVE EVENTS ===\n\n"
+                
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "MMMM d, yyyy 'at' h:mm a"
+                let shortDateFormatter = DateFormatter()
+                shortDateFormatter.dateFormat = "MMMM d, yyyy"
+                
+                // Events happening TODAY
+                if !todayEvents.isEmpty {
+                    prompt += "EVENTS HAPPENING TODAY (\(todayEvents.count)):\n"
+                    for event in todayEvents {
+                        prompt += """
+                        • \(event.title)
+                          Time: \(event.startTime) - \(event.endTime) TODAY
+                          Location: \(event.location)
+                          Description: \(event.description)
+                          Category: \(event.category.rawValue)
+                          Tags: \(event.tags.joined(separator: ", "))
+                          \(event.attending.count) people attending
+                          \(event.likedBy.count) people liked
+                        \n
+                        """
+                    }
+                    prompt += "\n"
+                }
+                
+                // Upcoming Events
+                if !upcomingEvents.isEmpty {
+                    prompt += "UPCOMING EVENTS (\(upcomingEvents.count)):\n"
+                    for event in upcomingEvents.prefix(50) { // Include up to 50 upcoming events
+                        let dateStr = shortDateFormatter.string(from: event.date)
+                        prompt += """
+                        • \(event.title)
+                          Date: \(dateStr)
+                          Time: \(event.startTime) - \(event.endTime)
+                          Location: \(event.location)
+                          Description: \(event.description)
+                          Category: \(event.category.rawValue)
+                          Tags: \(event.tags.joined(separator: ", "))
+                          \(event.attending.count) people attending
+                          \(event.likedBy.count) people liked
+                        \n
+                        """
+                    }
+                    if upcomingEvents.count > 50 {
+                        prompt += "... and \(upcomingEvents.count - 50) more upcoming events\n\n"
+                    }
+                }
+                
+                // Past Events (for context)
+                if !pastEvents.isEmpty {
+                    prompt += "RECENT PAST EVENTS (\(min(pastEvents.count, 20)) shown):\n"
+                    for event in pastEvents.suffix(20) { // Last 20 past events for context
+                        let dateStr = shortDateFormatter.string(from: event.date)
+                        prompt += """
+                        • \(event.title) (Past: \(dateStr))
+                          Location: \(event.location)
+                          Category: \(event.category.rawValue)
+                        \n
+                        """
+                    }
+                    prompt += "\n"
                 }
             }
         }
@@ -185,22 +259,83 @@ class AIChatManager: ObservableObject {
         
         prompt += """
         
-        6. When users ask about events:
-           - Provide specific details from the events listed above
-           - Include date, time, location, and description
+        9. COMPREHENSIVE GET ACTIVE APP KNOWLEDGE:
+        
+        APP STRUCTURE:
+        - Home Tab: Main feed with featured events, friends' activities, and "Happening Today" section
+        - Next Door Tab: Discover events at nearby universities (Wilberforce, Wright State, Ohio State, etc.)
+        - Map Tab: Interactive map showing all events with clickable pins and event index
+        - Favorites Tab: All events user has liked or RSVP'd to
+        - Profile Tab: User profile, settings, analytics (for event hosts), mental health resources
+        
+        EVENT FEATURES:
+        - Like Button: Heart icon to save events to favorites
+        - RSVP Button: First step to attend an event (changes to "I'm Going" after tapping)
+        - "I'm Going" Button: Confirms attendance and triggers event notifications
+        - "I'm Here!" Button: Available 1 hour before event until event ends, shows "Time to Get Active!" popup
+        - Event Rating: After events end, users can rate 1-5 stars and provide feedback
+        - Event Images: Events can have custom images uploaded from camera roll
+        - Event Categories: Academic, Technology, Party, Mental Health, Vendor, Club, Career, Prayer, Other
+        
+        NOTIFICATIONS:
+        - 1 hour before event (for events user is attending)
+        - When event starts (reminds to click "I'm Here!")
+        - Friend requests and acceptances
+        - Messages from friends
+        - Event rating prompts after events end
+        
+        SOCIAL FEATURES:
+        - Friends List: Add and manage friends
+        - Friend Activities: See what friends are going to and liked
+        - "Join Them" Button: Quickly RSVP to events friends are attending
+        - Direct Messaging: Chat with friends within the app
+        
+        EVENT MANAGEMENT:
+        - Create Events: Active members can post events with date, time, location, category, images
+        - My Events: View and delete events you created
+        - Event Analytics: See views, likes, attendees, ratings, and AI feedback for your events
+        - Event Details: Full event information with description, tags, attendee count
+        
+        PROFILE FEATURES:
+        - Account Settings: Edit profile picture and bio
+        - Calendar Integration: Link Get Active events to device calendar
+        - Mental Health Resources: University-specific wellness and support links
+        - Event Statistics: Friends count, events this week, upcoming events
+        - Analytics Dashboard: For event hosts (views, likes, attendees, ratings, charts)
+        
+        SEARCH AND DISCOVERY:
+        - Featured Events: Highlighted events on Home tab
+        - Happening Today: Today's events in vertical scrollable list
+        - All Events: Complete list of all events sorted by date
+        - Map View: Visual map of all events with filtering (CSU only or all events)
+        - Event Index: Scrollable list under map showing event cards
+        
+        10. When users ask about events:
+           - Provide SPECIFIC details from the events listed above (use exact event names, dates, times)
+           - Reference events by their actual titles and locations
            - Help them find events happening today, this week, or upcoming
-           - Mention if an event is happening at a specific building
+           - Mention specific building names and their hours if relevant
+           - Provide event descriptions, categories, and tags when helpful
         
-        7. When users ask about buildings or locations:
-           - Provide the building hours from the information above
-           - Help them find where events are located
+        11. When users ask about buildings or locations:
+           - Provide the exact building hours from the information above
+           - Help them find where events are located on campus
            - Answer questions about building accessibility or features
+           - Reference specific campus buildings by their full names
         
-        8. When helping with app features, provide specific, actionable information about:
-           - Finding events on different tabs (Home, Next Door, Favorites, Map)
-           - Using app features (liking events, calendar integration, friend activities)
-           - Event locations and details
-           - Tips for discovering new events
+        12. When helping with app features, provide specific, actionable information:
+           - Explain how to use each tab (Home, Next Door, Map, Favorites, Profile)
+           - Walk through features step-by-step (liking, RSVPing, calendar integration)
+           - Provide tips for discovering new events
+           - Help troubleshoot common app usage questions
+        
+        13. RESPONSE VARIATION REQUIREMENTS:
+           - NEVER repeat the same response structure or wording
+           - Use completely different examples, analogies, and explanations each time
+           - Vary your communication style (formal, casual, enthusiastic, helpful, etc.)
+           - Change sentence structure, length, and format
+           - Show creativity and personality while staying professional
+           - The user should feel like they're talking to a dynamic, intelligent assistant
         """
         
         return prompt
@@ -296,14 +431,15 @@ class AIChatManager: ObservableObject {
         ])
         
         // Prepare request - unlimited responses (no max_tokens limit)
-        // Using GPT-4o-mini but with enhanced settings for better reasoning
+        // Using GPT-4o for best quality and unlimited variation
         let requestBody: [String: Any] = [
-            "model": "gpt-4o-mini", // Using mini for cost efficiency, can upgrade to gpt-4o if needed
+            "model": "gpt-4o", // Using GPT-4o for best quality and unlimited responses
             "messages": conversationHistory,
-            "temperature": 0.7, // Slightly lower for more focused, accurate responses
+            "temperature": 0.9, // Higher temperature for maximum response variation
             // Removed max_tokens to allow unlimited responses
-            "presence_penalty": 0.6, // Encourages more varied responses
-            "frequency_penalty": 0.3 // Reduces repetition
+            "presence_penalty": 0.8, // Higher penalty for maximum response variation
+            "frequency_penalty": 0.6, // Higher penalty to reduce repetition significantly
+            "top_p": 0.95 // Nucleus sampling for more diverse responses
         ]
         
         guard let url = URL(string: apiURL) else {

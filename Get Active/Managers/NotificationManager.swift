@@ -31,14 +31,15 @@ class NotificationManager: ObservableObject {
         }
     }
     
-    func scheduleNotification(for event: Event, userId: String) {
+    func scheduleNotification(for event: Event, userId: String, advanceMinutes: Int = 30) {
         // Check if user is going to this event (notifications are scheduled when user clicks "I'm Going")
         guard event.attending.contains(userId) else {
             return
         }
         
-        // Parse event start time
+        // Parse event start and end times
         let eventStartDate = combineDateAndTime(event.date, timeString: event.startTime)
+        let eventEndDate = combineDateAndTime(event.date, timeString: event.endTime)
         let now = Date()
         
         // Only schedule if event is in the future
@@ -46,44 +47,63 @@ class NotificationManager: ObservableObject {
             return
         }
         
-        // Schedule notification 1 hour before event
-        scheduleOneHourBeforeNotification(for: event, startDate: eventStartDate, userId: userId)
+        // Validate advance minutes is one of the allowed options
+        let allowedValues = [15, 30, 50]
+        let validAdvanceMinutes = allowedValues.contains(advanceMinutes) ? advanceMinutes : 30
+        
+        // Schedule notification X minutes before event (based on user preference)
+        scheduleAdvanceNotification(for: event, startDate: eventStartDate, advanceMinutes: validAdvanceMinutes, userId: userId)
         
         // Schedule notification when event starts
         scheduleEventStartNotification(for: event, startDate: eventStartDate, userId: userId)
+        
+        // Schedule notification for survey at end of event
+        scheduleEndOfEventSurveyNotification(for: event, endDate: eventEndDate, userId: userId)
     }
     
-    private func scheduleOneHourBeforeNotification(for event: Event, startDate: Date, userId: String) {
+    private func scheduleAdvanceNotification(for event: Event, startDate: Date, advanceMinutes: Int, userId: String) {
         let calendar = Calendar.current
-        guard let oneHourBefore = calendar.date(byAdding: .hour, value: -1, to: startDate) else {
+        guard let advanceTime = calendar.date(byAdding: .minute, value: -advanceMinutes, to: startDate) else {
             return
         }
         
         // Only schedule if the notification time is in the future
-        guard oneHourBefore > Date() else {
+        guard advanceTime > Date() else {
             return
         }
         
         let content = UNMutableNotificationContent()
         content.title = "\(event.title) Starting Soon!"
-        content.body = "Starts in 1 hour at \(event.startTime) - \(event.location)"
+        
+        // Format the advance time message
+        let timeMessage: String
+        if advanceMinutes == 15 {
+            timeMessage = "Starts in 15 minutes"
+        } else if advanceMinutes == 30 {
+            timeMessage = "Starts in 30 minutes"
+        } else {
+            timeMessage = "Starts in 50 minutes"
+        }
+        
+        content.body = "\(timeMessage) at \(event.startTime) - \(event.location)"
         content.sound = .default
         content.userInfo = [
             "eventId": event.id,
-            "type": "oneHourBefore"
+            "type": "advanceNotification",
+            "advanceMinutes": advanceMinutes
         ]
         
-        let triggerDate = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: oneHourBefore)
+        let triggerDate = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: advanceTime)
         let trigger = UNCalendarNotificationTrigger(dateMatching: triggerDate, repeats: false)
         
-        let identifier = "\(event.id)_oneHourBefore_\(userId)"
+        let identifier = "\(event.id)_advance_\(userId)"
         let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
         
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("Error scheduling one hour before notification: \(error)")
+                print("Error scheduling advance notification: \(error)")
             } else {
-                print("Scheduled notification 1 hour before: \(event.title)")
+                print("Scheduled notification \(advanceMinutes) minutes before: \(event.title)")
             }
         }
     }
@@ -121,10 +141,44 @@ class NotificationManager: ObservableObject {
         }
     }
     
+    private func scheduleEndOfEventSurveyNotification(for event: Event, endDate: Date, userId: String) {
+        let calendar = Calendar.current
+        let now = Date()
+        
+        // Only schedule if the event end time is in the future
+        guard endDate > now else {
+            return
+        }
+        
+        let content = UNMutableNotificationContent()
+        content.title = "How was \(event.title)?"
+        content.body = "Share your feedback about the event!"
+        content.sound = .default
+        content.userInfo = [
+            "eventId": event.id,
+            "type": "endOfEventSurvey"
+        ]
+        
+        let triggerDate = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: endDate)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: triggerDate, repeats: false)
+        
+        let identifier = "\(event.id)_survey_\(userId)"
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("Error scheduling end of event survey notification: \(error)")
+            } else {
+                print("Scheduled survey notification for end of event: \(event.title)")
+            }
+        }
+    }
+    
     func cancelNotifications(for eventId: String, userId: String) {
         let identifiers = [
-            "\(eventId)_oneHourBefore_\(userId)",
-            "\(eventId)_eventStart_\(userId)"
+            "\(eventId)_advance_\(userId)",
+            "\(eventId)_eventStart_\(userId)",
+            "\(eventId)_survey_\(userId)"
         ]
         
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
@@ -135,15 +189,19 @@ class NotificationManager: ObservableObject {
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
     }
     
-    func scheduleNotificationsForAllLikedEvents(events: [Event], userId: String) {
+    func scheduleNotificationsForAllLikedEvents(events: [Event], userId: String, advanceMinutes: Int = 30) {
         // Cancel all existing notifications first to avoid duplicates
         cancelAllNotifications()
+        
+        // Validate advance minutes
+        let allowedValues = [15, 30, 50]
+        let validAdvanceMinutes = allowedValues.contains(advanceMinutes) ? advanceMinutes : 30
         
         // Schedule notifications for all events user is going to (not just liked)
         // Notifications are only sent when user clicks "I'm Going" after RSVP
         for event in events {
             if event.attending.contains(userId) {
-                scheduleNotification(for: event, userId: userId)
+                scheduleNotification(for: event, userId: userId, advanceMinutes: validAdvanceMinutes)
             }
         }
     }

@@ -8,16 +8,15 @@ struct FavoritesView: View {
     @State private var selectedEvent: Event?
     
     var body: some View {
-        NavigationView {
-            ZStack {
-                Color.getActiveBlack.ignoresSafeArea()
-                
-                VStack(spacing: 0) {
+        ZStack {
+            Color.getActiveBlack.ignoresSafeArea()
+            
+            VStack(spacing: 0) {
                     // Header - Always at the top
                     ZStack {
                         // Centered title
                         Text("Favorites")
-                            .font(.system(size: 22, weight: .bold))
+                            .font(.system(size: DeviceSize.titleFontSize, weight: .bold))
                             .foregroundColor(.white)
                         
                         // Right side buttons
@@ -25,14 +24,14 @@ struct FavoritesView: View {
                             Spacer()
                             
                             // Guard Shield Icon and Profile button (top right)
-                            HStack(spacing: 12) {
+                            HStack(spacing: DeviceSize.isPad ? 16 : 12) {
                                 Button(action: {
                                     showingChatBot = true
                                 }) {
                                     Image(systemName: "shield.fill")
-                                        .font(.system(size: 24, weight: .semibold))
+                                        .font(.system(size: DeviceSize.isPad ? 28 : 24, weight: .semibold))
                                         .foregroundColor(.getActiveRed)
-                                        .frame(width: 40, height: 40)
+                                        .frame(width: DeviceSize.isPad ? 48 : 40, height: DeviceSize.isPad ? 48 : 40)
                                 }
                                 
                                 Button(action: {
@@ -40,19 +39,19 @@ struct FavoritesView: View {
                                 }) {
                                     Circle()
                                         .fill(Color.gray.opacity(0.3))
-                                        .frame(width: 40, height: 40)
+                                        .frame(width: DeviceSize.isPad ? 48 : 40, height: DeviceSize.isPad ? 48 : 40)
                                         .overlay(
                                             Text("J")
-                                                .font(.system(size: 18, weight: .semibold))
+                                                .font(.system(size: DeviceSize.isPad ? 22 : 18, weight: .semibold))
                                                 .foregroundColor(.white)
                                         )
                                 }
                             }
                         }
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 5)
-                    .padding(.bottom, 10)
+                    .padding(.horizontal, DeviceSize.horizontalPadding)
+                    .padding(.top, DeviceSize.isPad ? 15 : 5)
+                    .padding(.bottom, DeviceSize.isPad ? 20 : 10)
                 
                     // Content below header
                     if eventManager.favoriteEvents.isEmpty {
@@ -75,43 +74,58 @@ struct FavoritesView: View {
                         Spacer()
                     } else {
                         ScrollView {
-                            VStack(spacing: 15) {
-                                ForEach(eventManager.favoriteEvents) { event in
-                                    FavoriteEventCard(event: event, eventManager: eventManager, userId: authManager.currentUser?.id ?? "", onFavoriteToggle: {
-                                        if let userId = authManager.currentUser?.id {
-                                            eventManager.updateFavoriteEvents(userId: userId)
+                            // Use grid layout on iPad, vertical stack on iPhone
+                            if DeviceSize.isPad {
+                                LazyVGrid(columns: DeviceSize.adaptiveColumns(minWidth: 400), spacing: 20) {
+                                    ForEach(eventManager.favoriteEvents) { event in
+                                        FavoriteEventCard(event: event, eventManager: eventManager, userId: authManager.currentUser?.id ?? "", onFavoriteToggle: {
+                                            if let userId = authManager.currentUser?.id {
+                                                eventManager.updateFavoriteEvents(userId: userId)
+                                            }
+                                        })
+                                        .environmentObject(authManager)
+                                        .onTapGesture {
+                                            selectedEvent = event
                                         }
-                                    })
-                                    .environmentObject(authManager)
-                                    .onTapGesture {
-                                        selectedEvent = event
                                     }
                                 }
+                                .padding(.horizontal, DeviceSize.horizontalPadding)
+                                .padding(.top, 10)
+                                .padding(.bottom, 100)
+                            } else {
+                                VStack(spacing: 15) {
+                                    ForEach(eventManager.favoriteEvents) { event in
+                                        FavoriteEventCard(event: event, eventManager: eventManager, userId: authManager.currentUser?.id ?? "", onFavoriteToggle: {
+                                            if let userId = authManager.currentUser?.id {
+                                                eventManager.updateFavoriteEvents(userId: userId)
+                                            }
+                                        })
+                                        .environmentObject(authManager)
+                                        .onTapGesture {
+                                            selectedEvent = event
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, DeviceSize.horizontalPadding)
+                                .padding(.top, 10)
+                                .padding(.bottom, 100)
                             }
-                            .padding(.horizontal, 20)
-                            .padding(.top, 10)
-                            .padding(.bottom, 100)
                         }
                     }
                 }
             }
-            .navigationBarHidden(true)
             .sheet(isPresented: $showingProfile) {
                 ProfileView()
                     .environmentObject(authManager)
             }
             .sheet(isPresented: $showingChatBot) {
-                NavigationView {
-                    ChatBotView()
-                        .environmentObject(authManager)
-                        .environmentObject(eventManager)
-                }
+                ChatBotView()
+                    .environmentObject(authManager)
+                    .environmentObject(eventManager)
             }
             .sheet(item: $selectedEvent) { event in
-                NavigationView {
-                    EventDetailView(event: event, eventManager: eventManager)
-                        .environmentObject(authManager)
-                }
+                EventDetailView(event: event, eventManager: eventManager)
+                    .environmentObject(authManager)
             }
             .onAppear {
                 if let userId = authManager.currentUser?.id {
@@ -135,7 +149,6 @@ struct FavoritesView: View {
                     syncFavoritesWithUser(userId: userId)
                     eventManager.updateFavoriteEvents(userId: userId)
                 }
-            }
         }
     }
     
@@ -194,12 +207,24 @@ struct FavoriteEventCard: View {
                     .foregroundColor(.gray)
                     .lineLimit(1)
                 
-                // Show liked indicator
+                // Show liked or RSVP'd indicator
                 if event.likedBy.contains(userId) {
                     HStack(spacing: 4) {
                         Image(systemName: "heart.fill")
                             .font(.system(size: 10))
                         Text("Liked")
+                            .font(.system(size: 10, weight: .medium))
+                    }
+                    .foregroundColor(.getActiveRed)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.getActiveRed.opacity(0.2))
+                    .cornerRadius(6)
+                } else if event.rsvpBy.contains(userId) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 10))
+                        Text("I'm Going")
                             .font(.system(size: 10, weight: .medium))
                     }
                     .foregroundColor(.getActiveRed)
@@ -226,12 +251,26 @@ struct FavoriteEventCard: View {
             
             Button(action: {
                 // Stop event propagation when clicking the heart button
-                eventManager.toggleFavorite(eventId: event.id, userId: userId)
+                // Remove from both liked and RSVP'd
+                if let index = eventManager.events.firstIndex(where: { $0.id == event.id }) {
+                    // Remove from liked
+                    eventManager.events[index].likedBy.removeAll { $0 == userId }
+                    // Remove from RSVP'd
+                    eventManager.events[index].rsvpBy.removeAll { $0 == userId }
+                    eventManager.events[index].attending.removeAll { $0 == userId }
+                    
+                    // Cancel notifications
+                    NotificationManager.shared.cancelNotifications(for: event.id, userId: userId)
+                }
+                
                 // Update user's favoriteEventIds
                 if var user = authManager.currentUser {
                     user.favoriteEventIds.removeAll { $0 == event.id }
                     authManager.currentUser = user
                 }
+                
+                // Update favorites list
+                eventManager.updateFavoriteEvents(userId: userId)
                 onFavoriteToggle?()
             }) {
                 Image(systemName: "heart.fill")

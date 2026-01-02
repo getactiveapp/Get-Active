@@ -30,19 +30,19 @@ struct AllTodayEventsView: View {
                     Spacer()
                     
                     Text("All Events")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.system(size: DeviceSize.titleFontSize, weight: .bold))
                         .foregroundColor(.white)
                     
                     Spacer()
                     
                     // Invisible button for balance
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 20))
+                        .font(.system(size: DeviceSize.isPad ? 24 : 20))
                         .foregroundColor(.clear)
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 10)
-                .padding(.bottom, 10)
+                .padding(.horizontal, DeviceSize.horizontalPadding)
+                .padding(.top, DeviceSize.isPad ? 20 : 10)
+                .padding(.bottom, DeviceSize.isPad ? 20 : 10)
                 
                 if allEvents.isEmpty {
                     Spacer()
@@ -64,19 +64,36 @@ struct AllTodayEventsView: View {
                     Spacer()
                 } else {
                     ScrollView {
-                        VStack(spacing: 15) {
-                            ForEach(allEvents) { event in
-                                Button(action: {
-                                    selectedEvent = event
-                                }) {
-                                    TodayEventCard(event: event, eventManager: eventManager, userId: authManager.currentUser?.id ?? "")
+                        // Use grid layout on iPad, vertical stack on iPhone
+                        if DeviceSize.isPad {
+                            LazyVGrid(columns: DeviceSize.adaptiveColumns(minWidth: 400), spacing: 20) {
+                                ForEach(allEvents) { event in
+                                    Button(action: {
+                                        selectedEvent = event
+                                    }) {
+                                        TodayEventCard(event: event, eventManager: eventManager, userId: authManager.currentUser?.id ?? "")
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
                                 }
-                                .buttonStyle(PlainButtonStyle())
                             }
+                            .padding(.horizontal, DeviceSize.horizontalPadding)
+                            .padding(.top, 10)
+                            .padding(.bottom, 100)
+                        } else {
+                            VStack(spacing: 15) {
+                                ForEach(allEvents) { event in
+                                    Button(action: {
+                                        selectedEvent = event
+                                    }) {
+                                        TodayEventCard(event: event, eventManager: eventManager, userId: authManager.currentUser?.id ?? "")
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                }
+                            }
+                            .padding(.horizontal, DeviceSize.horizontalPadding)
+                            .padding(.top, 10)
+                            .padding(.bottom, 100)
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 10)
-                        .padding(.bottom, 100)
                     }
                 }
             }

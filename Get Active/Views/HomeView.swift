@@ -10,21 +10,22 @@ struct HomeView: View {
     @State private var showingAllTodayEvents = false
     @State private var selectedEvent: Event?
     @State private var isRefreshing = false
+    @State private var searchText = ""
+    @FocusState private var isSearchFocused: Bool
     
     var body: some View {
-        NavigationView {
-            ZStack {
-                Color.getActiveBlack.ignoresSafeArea()
-                
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 25) {
+        ZStack {
+            Color.getActiveBlack.ignoresSafeArea()
+            
+            ScrollView {
+                VStack(alignment: .leading, spacing: DeviceSize.defaultSpacing) {
                         // Custom refresh indicator at the top
                         if isRefreshing {
                             HStack {
                                 Spacer()
                                 GetActiveLogoRefreshView()
-                                    .frame(width: 50, height: 50)
-                                    .padding(.vertical, 10)
+                                    .frame(width: DeviceSize.iconSize * 2, height: DeviceSize.iconSize * 2)
+                                    .padding(.vertical, DeviceSize.verticalPadding)
                                 Spacer()
                             }
                         }
@@ -33,7 +34,7 @@ struct HomeView: View {
                         ZStack {
                             // Centered title
                             Text("Home")
-                                .font(.system(size: 22, weight: .bold))
+                                .font(.system(size: DeviceSize.titleFontSize, weight: .bold))
                                 .foregroundColor(.white)
                             
                             // Right side buttons
@@ -41,14 +42,14 @@ struct HomeView: View {
                                 Spacer()
                                 
                                 // Guard Shield Icon and Profile button (top right)
-                                HStack(spacing: 12) {
+                                HStack(spacing: DeviceSize.isPad ? 16 : 12) {
                                     Button(action: {
                                         showingChatBot = true
                                     }) {
                                         Image(systemName: "shield.fill")
-                                            .font(.system(size: 24, weight: .semibold))
+                                            .font(.system(size: DeviceSize.iconSize + 4, weight: .semibold))
                                             .foregroundColor(.getActiveRed)
-                                            .frame(width: 40, height: 40)
+                                            .frame(width: DeviceSize.profileImageSize, height: DeviceSize.profileImageSize)
                                     }
                                     
                                     Button(action: {
@@ -56,33 +57,193 @@ struct HomeView: View {
                                     }) {
                                         Circle()
                                             .fill(Color.gray.opacity(0.3))
-                                            .frame(width: 40, height: 40)
+                                            .frame(width: DeviceSize.profileImageSize, height: DeviceSize.profileImageSize)
                                             .overlay(
                                                 Text("J")
-                                                    .font(.system(size: 18, weight: .semibold))
+                                                    .font(.system(size: DeviceSize.profileImageSize * 0.45, weight: .semibold))
                                                     .foregroundColor(.white)
                                             )
                                     }
                                 }
                             }
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 10)
+                        .padding(.horizontal, DeviceSize.horizontalPadding)
+                        .padding(.top, DeviceSize.isPad ? 20 : 10)
                         
+                        // Search Bar
+                        HStack {
+                            HStack {
+                                Image(systemName: "magnifyingglass")
+                                    .foregroundColor(.gray)
+                                    .font(.system(size: DeviceSize.iconSize))
+                                
+                                TextField("Search events...", text: $searchText)
+                                    .font(.system(size: DeviceSize.bodyFontSize))
+                                    .foregroundColor(.white)
+                                    .focused($isSearchFocused)
+                                    .autocorrectionDisabled()
+                                
+                                if !searchText.isEmpty {
+                                    Button(action: {
+                                        searchText = ""
+                                        isSearchFocused = false
+                                    }) {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundColor(.gray)
+                                            .font(.system(size: DeviceSize.iconSize))
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, DeviceSize.horizontalPadding * 0.6)
+                            .padding(.vertical, DeviceSize.searchBarHeight * 0.3)
+                            .frame(height: DeviceSize.searchBarHeight)
+                            .background(Color.gray.opacity(0.2))
+                            .cornerRadius(12)
+                        }
+                        .padding(.horizontal, DeviceSize.horizontalPadding)
+                        .padding(.top, DeviceSize.isPad ? 16 : 12)
+                        .padding(.bottom, DeviceSize.isPad ? 8 : 4)
+                        
+                        // Show search results if searching, otherwise show normal content
+                        if !searchText.isEmpty {
+                            searchResultsView
+                        } else {
+                            normalContentView
+                        }
+                    Spacer(minLength: 120)
+                }
+            }
+            .background(
+                RefreshControlReader(isRefreshing: $isRefreshing, onRefresh: {
+                    await refreshData()
+                })
+            )
+        }
+        .sheet(isPresented: $showingProfile) {
+            ProfileView()
+                .environmentObject(authManager)
+        }
+        .sheet(isPresented: $showingChatBot) {
+            ChatBotView()
+                .environmentObject(authManager)
+                .environmentObject(eventManager)
+        }
+        .sheet(item: $selectedEvent) { event in
+            EventDetailView(event: event, eventManager: eventManager)
+                .environmentObject(authManager)
+        }
+        .sheet(isPresented: $showingAllTodayEvents) {
+            AllTodayEventsView()
+                .environmentObject(authManager)
+                .environmentObject(eventManager)
+        }
+    }
+    
+    // Computed property for filtered search results
+    private var filteredEvents: [Event] {
+        guard !searchText.isEmpty else { return [] }
+        
+        let searchLower = searchText.lowercased()
+        return eventManager.getAllEventsSorted().filter { event in
+            event.title.lowercased().contains(searchLower) ||
+            event.description.lowercased().contains(searchLower) ||
+            event.location.lowercased().contains(searchLower) ||
+            event.category.rawValue.lowercased().contains(searchLower) ||
+            event.tags.contains { $0.lowercased().contains(searchLower) }
+        }
+    }
+    
+    // Search results view
+    private var searchResultsView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Search Results")
+                    .font(.system(size: DeviceSize.titleFontSize, weight: .semibold))
+                    .foregroundColor(.white)
+                
+                Spacer()
+                
+                Text("\(filteredEvents.count) found")
+                    .font(.system(size: DeviceSize.isPad ? 14 : 12))
+                    .foregroundColor(.gray)
+            }
+            .padding(.horizontal, DeviceSize.horizontalPadding)
+            
+            if filteredEvents.isEmpty {
+                VStack(spacing: 20) {
+                    Spacer()
+                        .frame(height: 100)
+                    
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: DeviceSize.isPad ? 60 : 50))
+                        .foregroundColor(.gray)
+                    
+                    Text("No events found")
+                        .font(.system(size: DeviceSize.titleFontSize, weight: .semibold))
+                        .foregroundColor(.white)
+                    
+                    Text("Try searching with different keywords")
+                        .font(.system(size: DeviceSize.bodyFontSize))
+                        .foregroundColor(.gray)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, DeviceSize.horizontalPadding * 2)
+                    
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity)
+            } else {
+                if DeviceSize.isPad {
+                    LazyVGrid(columns: DeviceSize.adaptiveColumns(minWidth: 350), spacing: 20) {
+                        ForEach(filteredEvents) { event in
+                            AllEventCard(event: event, eventManager: eventManager, userId: authManager.currentUser?.id ?? "", onFavoriteToggle: {
+                                if let userId = authManager.currentUser?.id {
+                                    eventManager.updateFavoriteEvents(userId: userId)
+                                }
+                            })
+                            .environmentObject(authManager)
+                            .onTapGesture {
+                                selectedEvent = event
+                            }
+                        }
+                    }
+                    .padding(.horizontal, DeviceSize.horizontalPadding)
+                } else {
+                    VStack(spacing: 15) {
+                        ForEach(filteredEvents) { event in
+                            AllEventCard(event: event, eventManager: eventManager, userId: authManager.currentUser?.id ?? "", onFavoriteToggle: {
+                                if let userId = authManager.currentUser?.id {
+                                    eventManager.updateFavoriteEvents(userId: userId)
+                                }
+                            })
+                            .environmentObject(authManager)
+                            .onTapGesture {
+                                selectedEvent = event
+                            }
+                        }
+                    }
+                    .padding(.horizontal, DeviceSize.horizontalPadding)
+                }
+            }
+        }
+    }
+    
+    // Normal content view (existing content)
+    private var normalContentView: some View {
+        VStack(alignment: .leading, spacing: DeviceSize.defaultSpacing) {
                         // Featured Events
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
                                 Text("Featured Events")
-                                    .font(.system(size: 22, weight: .semibold))
+                                    .font(.system(size: DeviceSize.titleFontSize, weight: .semibold))
                                     .foregroundColor(.white)
                                 
                                 Spacer()
                                 
                                 Text("Updated \(formatTime(Date()))")
-                                    .font(.system(size: 12))
+                                    .font(.system(size: DeviceSize.isPad ? 14 : 12))
                                     .foregroundColor(.gray)
                             }
-                            .padding(.horizontal, 20)
+                            .padding(.horizontal, DeviceSize.horizontalPadding)
                             
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 15) {
@@ -98,7 +259,7 @@ struct HomeView: View {
                                         }
                                     }
                                 }
-                                .padding(.horizontal, 20)
+                                .padding(.horizontal, DeviceSize.horizontalPadding)
                                 .padding(.vertical, 5)
                             }
                         }
@@ -106,24 +267,24 @@ struct HomeView: View {
                         // Friends' Activities
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Friends' Activities")
-                                .font(.system(size: 22, weight: .semibold))
+                                .font(.system(size: DeviceSize.titleFontSize, weight: .semibold))
                                 .foregroundColor(.white)
-                                .padding(.horizontal, 20)
+                                .padding(.horizontal, DeviceSize.horizontalPadding)
                             
-                            VStack(spacing: 12) {
+                            VStack(spacing: DeviceSize.isPad ? 16 : 12) {
                                 ForEach(friendActivityManager.activities) { activity in
                                     FriendActivityRow(activity: activity, eventManager: eventManager)
                                         .environmentObject(authManager)
                                 }
                             }
-                            .padding(.horizontal, 20)
+                            .padding(.horizontal, DeviceSize.horizontalPadding)
                         }
                         
                         // Happening Today
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
                                 Text("Happening Today")
-                                    .font(.system(size: 22, weight: .semibold))
+                                    .font(.system(size: DeviceSize.titleFontSize, weight: .semibold))
                                     .foregroundColor(.white)
                                 
                                 Spacer()
@@ -131,61 +292,44 @@ struct HomeView: View {
                                 Button("See all") {
                                     showingAllTodayEvents = true
                                 }
-                                .font(.system(size: 16, weight: .medium))
+                                .font(.system(size: DeviceSize.bodyFontSize, weight: .medium))
                                 .foregroundColor(.getActiveRed)
                             }
-                            .padding(.horizontal, 20)
+                            .padding(.horizontal, DeviceSize.horizontalPadding)
                             
-                            VStack(spacing: 15) {
-                                ForEach(eventManager.getEventsForToday()) { event in
-                                    AllEventCard(event: event, eventManager: eventManager, userId: authManager.currentUser?.id ?? "", onFavoriteToggle: {
-                                        if let userId = authManager.currentUser?.id {
-                                            eventManager.updateFavoriteEvents(userId: userId)
+                            // Use grid layout on iPad, vertical stack on iPhone
+                            if DeviceSize.isPad {
+                                LazyVGrid(columns: DeviceSize.adaptiveColumns(minWidth: 350), spacing: 20) {
+                                    ForEach(eventManager.getEventsForToday()) { event in
+                                        AllEventCard(event: event, eventManager: eventManager, userId: authManager.currentUser?.id ?? "", onFavoriteToggle: {
+                                            if let userId = authManager.currentUser?.id {
+                                                eventManager.updateFavoriteEvents(userId: userId)
+                                            }
+                                        })
+                                        .environmentObject(authManager)
+                                        .onTapGesture {
+                                            selectedEvent = event
                                         }
-                                    })
-                                    .environmentObject(authManager)
-                                    .onTapGesture {
-                                        selectedEvent = event
                                     }
                                 }
+                                .padding(.horizontal, DeviceSize.horizontalPadding)
+                            } else {
+                                VStack(spacing: 15) {
+                                    ForEach(eventManager.getEventsForToday()) { event in
+                                        AllEventCard(event: event, eventManager: eventManager, userId: authManager.currentUser?.id ?? "", onFavoriteToggle: {
+                                            if let userId = authManager.currentUser?.id {
+                                                eventManager.updateFavoriteEvents(userId: userId)
+                                            }
+                                        })
+                                        .environmentObject(authManager)
+                                        .onTapGesture {
+                                            selectedEvent = event
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, DeviceSize.horizontalPadding)
                             }
-                            .padding(.horizontal, 20)
                         }
-                        
-                        Spacer(minLength: 120)
-                    }
-                }
-            }
-            .navigationBarHidden(true)
-            .background(
-                RefreshControlReader(isRefreshing: $isRefreshing, onRefresh: {
-                    await refreshData()
-                })
-            )
-            .sheet(isPresented: $showingProfile) {
-                ProfileView()
-                    .environmentObject(authManager)
-            }
-            .sheet(isPresented: $showingChatBot) {
-                NavigationView {
-                    ChatBotView()
-                        .environmentObject(authManager)
-                        .environmentObject(eventManager)
-                }
-            }
-            .sheet(item: $selectedEvent) { event in
-                NavigationView {
-                    EventDetailView(event: event, eventManager: eventManager)
-                        .environmentObject(authManager)
-                }
-            }
-                .sheet(isPresented: $showingAllTodayEvents) {
-                    NavigationView {
-                        AllTodayEventsView()
-                            .environmentObject(authManager)
-                            .environmentObject(eventManager)
-                    }
-                }
         }
     }
     
@@ -234,7 +378,7 @@ struct FeaturedEventCard: View {
                     Image(uiImage: loadedImage)
                         .resizable()
                         .scaledToFill()
-                        .frame(width: 280, height: 200)
+                        .frame(width: DeviceSize.featuredEventCardWidth, height: DeviceSize.featuredEventCardHeight)
                         .clipped()
                         .overlay(
                             // Dark overlay for text readability
@@ -248,7 +392,7 @@ struct FeaturedEventCard: View {
                     // Background color based on event
                     RoundedRectangle(cornerRadius: 16)
                         .fill(backgroundColorForEvent(event))
-                        .frame(width: 280, height: 200)
+                        .frame(width: DeviceSize.featuredEventCardWidth, height: DeviceSize.featuredEventCardHeight)
                 }
                 
                 VStack {
@@ -292,15 +436,15 @@ struct FeaturedEventCard: View {
                     // Icon/Emoji centered at top (only if no image)
                     if loadedImage == nil, let iconName = event.iconName {
                         Image(systemName: iconName)
-                            .font(.system(size: 50))
+                            .font(.system(size: DeviceSize.isPad ? 60 : 50))
                             .foregroundColor(.white)
-                            .padding(.top, 20)
+                            .padding(.top, DeviceSize.isPad ? 24 : 20)
                     }
                     
                     Spacer()
                 }
             }
-            .frame(width: 280, height: 200)
+            .frame(width: DeviceSize.featuredEventCardWidth, height: DeviceSize.featuredEventCardHeight)
             .cornerRadius(16)
             .onAppear {
                 loadEventImage()
@@ -308,29 +452,29 @@ struct FeaturedEventCard: View {
             
             VStack(alignment: .leading, spacing: 8) {
                 Text(event.title)
-                    .font(.system(size: 18, weight: .bold))
+                    .font(.system(size: DeviceSize.bodyFontSize + 2, weight: .bold))
                     .foregroundColor(.white)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
-                    .frame(height: 44, alignment: .topLeading)
+                    .frame(height: DeviceSize.isPad ? 50 : 44, alignment: .topLeading)
                 
                 Text("\(formatDate(event.date)) • \(event.startTime) - \(event.endTime)")
-                    .font(.system(size: 12))
+                    .font(.system(size: DeviceSize.captionFontSize))
                     .foregroundColor(.gray)
                     .lineLimit(1)
                 
                 Text(event.location)
-                    .font(.system(size: 12))
+                    .font(.system(size: DeviceSize.captionFontSize))
                     .foregroundColor(.gray)
                     .lineLimit(1)
                 
                 HStack(spacing: 8) {
                     ForEach(event.tags.prefix(2), id: \.self) { tag in
                         Text(tag)
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.system(size: DeviceSize.captionFontSize - 1, weight: .medium))
                             .foregroundColor(.white)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
+                            .padding(.horizontal, DeviceSize.isPad ? 12 : 10)
+                            .padding(.vertical, DeviceSize.isPad ? 6 : 5)
                             .background(Color.gray.opacity(0.4))
                             .cornerRadius(12)
                     }
@@ -338,16 +482,16 @@ struct FeaturedEventCard: View {
                 
                 if !event.attending.isEmpty {
                     Text("+\(event.attending.count) friends going")
-                        .font(.system(size: 12))
+                        .font(.system(size: DeviceSize.captionFontSize))
                         .foregroundColor(.gray)
                 } else if event.likedBy.count > 0 {
                     Text("+\(event.likedBy.count) friends going")
-                        .font(.system(size: 12))
+                        .font(.system(size: DeviceSize.captionFontSize))
                         .foregroundColor(.gray)
                 }
             }
         }
-        .frame(width: 280)
+        .frame(width: DeviceSize.featuredEventCardWidth)
     }
     
     private func backgroundColorForEvent(_ event: Event) -> Color {
@@ -510,115 +654,102 @@ struct FriendActivityRow: View {
     @State private var selectedEvent: Event?
     @State private var showingFriendProfile = false
     @State private var showingChat = false
+    @State private var showingJoinConfirmation = false
     
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: DeviceSize.defaultSpacing * 0.6) {
             // Profile Image
             Circle()
                 .fill(Color.gray.opacity(0.3))
-                .frame(width: 50, height: 50)
+                .frame(width: DeviceSize.profileImageSize, height: DeviceSize.profileImageSize)
                 .overlay(
                     Text(String(activity.friendName.prefix(1)))
-                        .font(.system(size: 20, weight: .semibold))
+                        .font(.system(size: DeviceSize.profileImageSize * 0.4, weight: .semibold))
                         .foregroundColor(.white)
                 )
+                .onTapGesture {
+                    showingFriendProfile = true
+                }
             
             // Text content with proper spacing - using HStack with flexible wrapping
             VStack(alignment: .leading, spacing: 5) {
                 // Use HStack with flexible layout to allow event name to wrap
                 HStack(alignment: .top, spacing: 4) {
                     Text(activity.friendName)
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: DeviceSize.bodyFontSize, weight: .semibold))
                         .foregroundColor(.white)
                         .fixedSize(horizontal: true, vertical: false)
                     
                     Text(activity.activityType == .going ? "is going to" : "liked")
-                        .font(.system(size: 16))
+                        .font(.system(size: DeviceSize.bodyFontSize))
                         .foregroundColor(.white)
                         .fixedSize(horizontal: true, vertical: false)
                     
                     // Event name that can wrap
                     Button(action: {
-                        // Stop propagation to parent tap gesture
                         if let event = eventManager.events.first(where: { $0.id == activity.eventId }) {
                             selectedEvent = event
                         }
                     }) {
                         Text(activity.eventTitle)
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: DeviceSize.bodyFontSize, weight: .semibold))
                             .foregroundColor(.getActiveRed)
                             .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
                             .lineLimit(2)
                     }
                     .buttonStyle(PlainButtonStyle())
-                    .highPriorityGesture(TapGesture().onEnded {
-                        if let event = eventManager.events.first(where: { $0.id == activity.eventId }) {
-                            selectedEvent = event
-                        }
-                    })
                     
                     Spacer(minLength: 0)
                 }
                 
                 Text(timeAgo(from: activity.timestamp))
-                    .font(.system(size: 12))
+                    .font(.system(size: DeviceSize.captionFontSize))
                     .foregroundColor(.gray)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                showingFriendProfile = true
+            }
             
             // Action buttons - matching image layout
             HStack(spacing: 8) {
                 if activity.activityType == .going {
-                    Button(action: {
-                        // Join them - Open event detail so user can like and RSVP
-                        if let event = eventManager.events.first(where: { $0.id == activity.eventId }) {
-                            selectedEvent = event
+                    Text("Join them")
+                        .font(.system(size: DeviceSize.isPad ? 14 : 12, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, DeviceSize.isPad ? 16 : 12)
+                        .padding(.vertical, DeviceSize.isPad ? 8 : 6)
+                        .background(Color.getActiveRed)
+                        .cornerRadius(8)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            handleJoinThem()
                         }
-                    }) {
-                        Text("Join them")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color.getActiveRed)
-                            .cornerRadius(8)
-                    }
-                    .buttonStyle(PlainButtonStyle())
                 }
                 
-                Button(action: {
-                    // Message action - navigate to direct chat with this friend
-                    showingChat = true
-                }) {
-                    Image(systemName: "message")
-                        .font(.system(size: 14))
-                        .foregroundColor(.getActiveRed)
-                        .frame(width: 32, height: 32)
-                        .overlay(
-                            Circle()
-                                .stroke(Color.getActiveRed, lineWidth: 1)
-                        )
-                }
-                .buttonStyle(PlainButtonStyle())
-            }
-            .onTapGesture {
-                // Prevent parent tap gesture from firing when buttons are tapped
+                Image(systemName: "message")
+                    .font(.system(size: 14))
+                    .foregroundColor(.getActiveRed)
+                    .frame(width: 32, height: 32)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.getActiveRed, lineWidth: 1)
+                    )
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        showingChat = true
+                    }
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(Color.gray.opacity(0.1))
         .cornerRadius(12)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            showingFriendProfile = true
-        }
         .sheet(item: $selectedEvent) { event in
-            NavigationView {
-                EventDetailView(event: event, eventManager: eventManager)
-                    .environmentObject(authManager)
-            }
+            EventDetailView(event: event, eventManager: eventManager)
+                .environmentObject(authManager)
         }
         .sheet(isPresented: $showingFriendProfile) {
             FriendProfileView(friendName: activity.friendName, friendId: activity.friendId, eventManager: eventManager)
@@ -630,12 +761,153 @@ struct FriendActivityRow: View {
                     .environmentObject(authManager)
             }
         }
+        .sheet(isPresented: $showingJoinConfirmation) {
+            JoinConfirmationView(
+                friendName: activity.friendName,
+                eventTitle: activity.eventTitle
+            )
+        }
     }
     
     private func timeAgo(from date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+    
+    private func handleJoinThem() {
+        // Join them - Automatically like, RSVP, and add to attending
+        guard let userId = authManager.currentUser?.id else { return }
+        
+        // Find event by title (more reliable than ID since events use auto-generated UUIDs)
+        // First try by ID, then fall back to title matching
+        var eventIndex: Int?
+        
+        if let index = eventManager.events.firstIndex(where: { $0.id == activity.eventId }) {
+            eventIndex = index
+        } else if let index = eventManager.events.firstIndex(where: { $0.title == activity.eventTitle }) {
+            eventIndex = index
+        }
+        
+        guard let index = eventIndex else {
+            print("❌ Event not found: \(activity.eventTitle) (ID: \(activity.eventId))")
+            return
+        }
+        
+        let event = eventManager.events[index]
+        
+        // Automatically like the event
+        if !eventManager.events[index].likedBy.contains(userId) {
+            eventManager.events[index].likedBy.append(userId)
+        }
+        
+        // Automatically RSVP to the event
+        if !eventManager.events[index].rsvpBy.contains(userId) {
+            eventManager.events[index].rsvpBy.append(userId)
+        }
+        
+        // Add to attending (actually going)
+        if !eventManager.events[index].attending.contains(userId) {
+            eventManager.events[index].attending.append(userId)
+        }
+        
+        // Update user's favoriteEventIds
+        if var user = authManager.currentUser {
+            if !user.favoriteEventIds.contains(event.id) {
+                user.favoriteEventIds.append(event.id)
+            }
+            authManager.currentUser = user
+        }
+        
+        // Schedule notifications
+        let advanceMinutes = authManager.currentUser?.notificationAdvanceMinutes ?? 30
+        NotificationManager.shared.scheduleNotification(
+            for: eventManager.events[index],
+            userId: userId,
+            advanceMinutes: advanceMinutes
+        )
+        
+        // Update favorites
+        eventManager.updateFavoriteEvents(userId: userId)
+        
+        // Show join confirmation popup
+        showingJoinConfirmation = true
+    }
+}
+
+struct JoinConfirmationView: View {
+    let friendName: String
+    let eventTitle: String
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color.getActiveBlack.ignoresSafeArea()
+                
+                VStack(spacing: 40) {
+                    Spacer()
+                    
+                    // Checkmark icon
+                    ZStack {
+                        Circle()
+                            .fill(Color.getActiveRed.opacity(0.2))
+                            .frame(width: DeviceSize.isPad ? 120 : 100, height: DeviceSize.isPad ? 120 : 100)
+                        
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: DeviceSize.isPad ? 70 : 60, weight: .bold))
+                            .foregroundColor(.getActiveRed)
+                    }
+                    
+                    // Message
+                    VStack(spacing: 16) {
+                        Text("You're joining")
+                            .font(.system(size: DeviceSize.isPad ? 32 : 28, weight: .semibold))
+                            .foregroundColor(.white)
+                        
+                        Text("\(friendName) to")
+                            .font(.system(size: DeviceSize.isPad ? 26 : 22, weight: .medium))
+                            .foregroundColor(.white)
+                        
+                        Text(eventTitle)
+                            .font(.system(size: DeviceSize.isPad ? 30 : 26, weight: .bold))
+                            .foregroundColor(.getActiveRed)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(3)
+                            .padding(.horizontal, DeviceSize.horizontalPadding)
+                    }
+                    
+                    Spacer()
+                    
+                    // Action button
+                    Button(action: {
+                        dismiss()
+                    }) {
+                        Text("Got it!")
+                            .font(.system(size: DeviceSize.isPad ? 20 : 18, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: DeviceSize.isPad ? 60 : 55)
+                            .background(Color.getActiveRed)
+                            .cornerRadius(12)
+                    }
+                    .padding(.horizontal, DeviceSize.horizontalPadding)
+                    .padding(.bottom, DeviceSize.isPad ? 40 : 30)
+                }
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        dismiss()
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                    }
+                }
+            }
+        }
     }
 }
 

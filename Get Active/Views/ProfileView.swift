@@ -15,6 +15,8 @@ struct ProfileView: View {
     @State private var showingHelp = false
     @State private var showingCalendarPermission = false
     @State private var showingAccountSettings = false
+    @State private var showingFriendFinderSettings = false
+    @State private var showingNotificationSettings = false
     @State private var selectedEvent: Event?
     @State private var isRefreshing = false
     @State private var profileImage: UIImage?
@@ -56,25 +58,25 @@ struct ProfileView: View {
                             Spacer()
                             
                             Text("Profile")
-                                .font(.system(size: 20, weight: .bold))
+                                .font(.system(size: DeviceSize.titleFontSize, weight: .bold))
                                 .foregroundColor(.white)
                             
                             Spacer()
                             
                             // Invisible button for balance
                             Image(systemName: "chevron.left")
-                                .font(.system(size: 20))
+                                .font(.system(size: DeviceSize.isPad ? 24 : 20))
                                 .foregroundColor(.clear)
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 10)
+                        .padding(.horizontal, DeviceSize.horizontalPadding)
+                        .padding(.top, DeviceSize.isPad ? 20 : 10)
                         
                         // Profile Header with Red Background
                         ZStack {
                             Color.getActiveRed
-                                .frame(height: (authManager.currentUser?.bio.isEmpty == false) ? 360 : 300)
+                                .frame(height: DeviceSize.isPad ? ((authManager.currentUser?.bio.isEmpty == false) ? 420 : 360) : ((authManager.currentUser?.bio.isEmpty == false) ? 360 : 300))
                             
-                            VStack(spacing: 15) {
+                            VStack(spacing: DeviceSize.isPad ? 20 : 15) {
                                 // Profile Image
                                 ZStack {
                                     if let profileImage = profileImage {
@@ -89,14 +91,14 @@ struct ProfileView: View {
                                     Circle()
                                         .stroke(Color.white, lineWidth: 2)
                                 }
-                                .frame(width: 100, height: 100)
+                                .frame(width: DeviceSize.isPad ? 120 : 100, height: DeviceSize.isPad ? 120 : 100)
                                 .clipShape(Circle())
                                 .overlay(
                                     // Fallback to initial if no image
                                     Group {
                                         if profileImage == nil {
                                             Text(String((authManager.currentUser?.name.prefix(1) ?? "U")))
-                                                .font(.system(size: 40, weight: .bold))
+                                                .font(.system(size: DeviceSize.isPad ? 50 : 40, weight: .bold))
                                                 .foregroundColor(.white)
                                         }
                                     }
@@ -104,20 +106,20 @@ struct ProfileView: View {
                                 
                                 // Name
                                 Text(authManager.currentUser?.name ?? "User")
-                                    .font(.system(size: 28, weight: .bold))
+                                    .font(.system(size: DeviceSize.isPad ? 34 : 28, weight: .bold))
                                     .foregroundColor(.white)
                                 
                                 // University and Year
                                 HStack(spacing: 5) {
                                     Text(authManager.currentUser?.university ?? "")
-                                        .font(.system(size: 16))
+                                        .font(.system(size: DeviceSize.isPad ? 18 : 16))
                                         .foregroundColor(.white)
                                     
                                     Text("•")
                                         .foregroundColor(.white)
                                     
                                     Text(authManager.currentUser?.year ?? "")
-                                        .font(.system(size: 16))
+                                        .font(.system(size: DeviceSize.isPad ? 18 : 16))
                                         .foregroundColor(.white)
                                     
                                     Button(action: {
@@ -128,35 +130,36 @@ struct ProfileView: View {
                                             .foregroundColor(.getActiveRed)
                                             .background(Color.white)
                                             .clipShape(Circle())
+                                            .font(.system(size: DeviceSize.isPad ? 20 : 16))
                                     }
                                 }
                                 
                                 // Bio
                                 if let bio = authManager.currentUser?.bio, !bio.isEmpty {
                                     Text(bio)
-                                        .font(.system(size: 14))
+                                        .font(.system(size: DeviceSize.isPad ? 16 : 14))
                                         .foregroundColor(.white.opacity(0.9))
                                         .multilineTextAlignment(.center)
-                                        .lineLimit(3)
-                                        .padding(.horizontal, 20)
-                                        .padding(.top, 5)
+                                        .lineLimit(DeviceSize.isPad ? 4 : 3)
+                                        .padding(.horizontal, DeviceSize.isPad ? 40 : 20)
+                                        .padding(.top, DeviceSize.isPad ? 8 : 5)
                                 }
                                 
                                 // Stats
                                 HStack(spacing: 5) {
                                     Text("\(authManager.currentUser?.friends.count ?? 0) Friends")
-                                        .font(.system(size: 14))
+                                        .font(.system(size: DeviceSize.isPad ? 16 : 14))
                                         .foregroundColor(.white)
                                     
                                     Text("•")
                                         .foregroundColor(.white)
                                     
                                     Text("\(getEventsThisWeek()) Events This Week")
-                                        .font(.system(size: 14))
+                                        .font(.system(size: DeviceSize.isPad ? 16 : 14))
                                         .foregroundColor(.white)
                                 }
                             }
-                            .padding(.top, 50)
+                            .padding(.top, DeviceSize.isPad ? 60 : 50)
                         }
                         
                         // Make a Post Button
@@ -357,6 +360,14 @@ struct ProfileView: View {
                                     showingAccountSettings = true
                                 }
                                 
+                                SettingsRow(icon: "person.2.fill", title: "Friend Finder Profile", color: .getActiveRed, action: {
+                                    showingFriendFinderSettings = true
+                                })
+                                
+                                SettingsRow(icon: "bell.fill", title: "Notification Settings", color: .getActiveRed, action: {
+                                    showingNotificationSettings = true
+                                })
+                                
                                 if authManager.currentUser?.accountType == .activeMember {
                                     SettingsRow(icon: "doc.text.fill", title: "My Membership", color: .getActiveRed) {
                                         showingMembership = true
@@ -456,6 +467,15 @@ struct ProfileView: View {
                         // Reload profile image when account settings is dismissed
                         loadProfileImage()
                     }
+            }
+            .sheet(isPresented: $showingFriendFinderSettings) {
+                FriendFinderSettingsView()
+                    .environmentObject(authManager)
+            }
+            .sheet(isPresented: $showingNotificationSettings) {
+                NotificationSettingsView()
+                    .environmentObject(authManager)
+                    .environmentObject(eventManager)
             }
             .sheet(item: $selectedEvent) { event in
                 NavigationView {

@@ -63,10 +63,7 @@ struct AnalyticsView: View {
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 20)
                             
-                            LazyVGrid(columns: [
-                                GridItem(.flexible(), spacing: 12),
-                                GridItem(.flexible(), spacing: 12)
-                            ], spacing: 12) {
+                            LazyVGrid(columns: DeviceSize.adaptiveColumns(minWidth: 150), spacing: 12) {
                                 ClickableStatBox(
                                     title: "Total Views",
                                     value: "\(totalAnalytics.views)",

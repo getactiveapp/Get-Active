@@ -594,11 +594,12 @@ class EventManager: ObservableObject {
         updateFavoriteEvents(userId: userId)
         
         // Schedule notifications for all liked events
+        // Note: advanceMinutes will default to 30 if not provided
         Task {
             let hasPermission = await NotificationManager.shared.requestAuthorization()
             if hasPermission {
                 await MainActor.run {
-                    NotificationManager.shared.scheduleNotificationsForAllLikedEvents(events: events, userId: userId)
+                    NotificationManager.shared.scheduleNotificationsForAllLikedEvents(events: events, userId: userId, advanceMinutes: 30)
                 }
             }
         }
