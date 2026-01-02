@@ -435,11 +435,11 @@ class FirebaseService {
             backgroundColor: backgroundColor,
             iconName: iconName,
             createdBy: createdBy,
-            isFeatured: isFeatured,
-            customImages: customImages,
             likedBy: likedBy,
             rsvpBy: rsvpBy,
-            attending: attending
+            attending: attending,
+            isFeatured: isFeatured,
+            customImages: customImages
         )
     }
 }
