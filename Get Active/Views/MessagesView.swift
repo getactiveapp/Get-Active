@@ -73,8 +73,16 @@ struct MessagesView: View {
                 }
             }
             .sheet(item: $selectedChat) { conversation in
-                ChatView(friendId: conversation.friendId, friendName: conversation.friendName)
+                ChatView(conversationId: conversation.id, friendId: conversation.friendId, friendName: conversation.friendName)
                     .environmentObject(authManager)
+            }
+            .onAppear {
+                if let userId = authManager.currentUser?.id {
+                    messagesManager.loadConversations(userId: userId)
+                }
+            }
+            .onDisappear {
+                messagesManager.removeListeners()
             }
         }
     }

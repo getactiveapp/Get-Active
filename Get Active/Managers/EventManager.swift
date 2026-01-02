@@ -5,8 +5,58 @@ class EventManager: ObservableObject {
     @Published var events: [Event] = []
     @Published var favoriteEvents: [Event] = []
     
+    // Configuration: Set to true to use Firebase, false for local storage
+    var useFirebase: Bool = true // Change to false to use local storage
+    
+    private let firebaseService = FirebaseService.shared
+    private var eventsListener: ListenerRegistration?
+    
     init() {
-        loadSampleEvents()
+        if useFirebase {
+            setupFirebaseListeners()
+        } else {
+            loadSampleEvents()
+        }
+    }
+    
+    deinit {
+        eventsListener?.remove()
+    }
+    
+    // MARK: - Firebase Setup
+    
+    private func setupFirebaseListeners() {
+        // Listen to events in real-time
+        eventsListener = firebaseService.observeEvents { [weak self] result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let firebaseEvents):
+                    self?.events = firebaseEvents
+                    // Update favorites if user is logged in
+                    if let userId = self?.getCurrentUserId() {
+                        self?.updateFavoriteEvents(userId: userId)
+                    }
+                case .failure(let error):
+                    print("Error loading events from Firebase: \(error.localizedDescription)")
+                    // Fallback to sample events if Firebase fails
+                    self?.loadSampleEvents()
+                }
+            }
+        }
+    }
+    
+    private var currentUserId: String?
+    
+    private func getCurrentUserId() -> String? {
+        return currentUserId
+    }
+    
+    /// Set current user ID (called when user logs in)
+    func setCurrentUserId(_ userId: String?) {
+        currentUserId = userId
+        if let userId = userId {
+            updateFavoriteEvents(userId: userId)
+        }
     }
     
     func loadSampleEvents() {
@@ -465,25 +515,42 @@ class EventManager: ObservableObject {
     }
     
     func toggleFavorite(eventId: String, userId: String) {
-        if let index = events.firstIndex(where: { $0.id == eventId }) {
-            let wasLiked = events[index].likedBy.contains(userId)
-            
-            if wasLiked {
-                // Unliking - only cancel notifications if user is not going
-                events[index].likedBy.removeAll { $0 == userId }
-                // Only cancel notifications if user is not going (notifications come from "I'm Going", not liking)
-                if !events[index].attending.contains(userId) {
-                    NotificationManager.shared.cancelNotifications(for: eventId, userId: userId)
-                }
-            } else {
-                // Liking - don't schedule notifications here (only when user clicks "I'm Going")
-                if !events[index].likedBy.contains(userId) {
-                    events[index].likedBy.append(userId)
-                }
-                // Notifications are now only scheduled when user clicks "I'm Going" after RSVP
+        guard let index = events.firstIndex(where: { $0.id == eventId }) else { return }
+        
+        var event = events[index]
+        let wasLiked = event.likedBy.contains(userId)
+        
+        if wasLiked {
+            // Unliking - only cancel notifications if user is not going
+            event.likedBy.removeAll { $0 == userId }
+            // Only cancel notifications if user is not going (notifications come from "I'm Going", not liking)
+            if !event.attending.contains(userId) {
+                NotificationManager.shared.cancelNotifications(for: eventId, userId: userId)
             }
-            updateFavoriteEvents(userId: userId)
+        } else {
+            // Liking - don't schedule notifications here (only when user clicks "I'm Going")
+            if !event.likedBy.contains(userId) {
+                event.likedBy.append(userId)
+            }
+            // Notifications are now only scheduled when user clicks "I'm Going" after RSVP
         }
+        
+        // Update local state
+        events[index] = event
+        
+        // Sync to Firebase if enabled
+        if useFirebase {
+            firebaseService.updateEvent(event) { result in
+                switch result {
+                case .success:
+                    print("✅ Event updated in Firebase")
+                case .failure(let error):
+                    print("❌ Error updating event in Firebase: \(error.localizedDescription)")
+                }
+            }
+        }
+        
+        updateFavoriteEvents(userId: userId)
     }
     
     func updateFavoriteEvents(userId: String) {

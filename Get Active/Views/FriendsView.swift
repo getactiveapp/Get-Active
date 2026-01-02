@@ -248,7 +248,7 @@ struct FriendsView: View {
         .sheet(isPresented: $showingChat) {
             if let friend = selectedFriend {
                 NavigationView {
-                    ChatView(friendId: friend.id, friendName: friend.name)
+                    ChatView(conversationId: nil, friendId: friend.id, friendName: friend.name)
                         .environmentObject(authManager)
                 }
             }

@@ -75,35 +75,48 @@ struct ChatView: View {
     private func sendMessage() {
         guard !messageText.trimmingCharacters(in: .whitespaces).isEmpty,
               let currentUserId = authManager.currentUser?.id,
-              let currentUserName = authManager.currentUser?.name else { return }
+              let currentUserName = authManager.currentUser?.name,
+              let conversationId = currentConversationId else { return }
         
         let messageToSend = messageText.trimmingCharacters(in: .whitespaces)
         
-        let newMessage = ChatMessage(
-            id: UUID().uuidString,
+        messagesManager.sendMessage(
+            conversationId: conversationId,
             senderId: currentUserId,
             receiverId: friendId,
-            text: messageToSend,
-            timestamp: Date()
-        )
-        
-        messages.append(newMessage)
-        
-        // Send notification to the friend who received the message
-        NotificationManager.shared.sendMessageNotification(
-            fromUserName: currentUserName,
-            messageText: messageToSend,
-            toUserId: friendId,
-            fromUserId: currentUserId
-        )
+            text: messageToSend
+        ) { success in
+            if success {
+                // Send notification to the friend who received the message
+                NotificationManager.shared.sendMessageNotification(
+                    fromUserName: currentUserName,
+                    messageText: messageToSend,
+                    toUserId: friendId,
+                    fromUserId: currentUserId
+                )
+            }
+        }
         
         messageText = ""
     }
     
     private func loadMessages() {
-        // Load existing messages - in a real app, this would fetch from a backend
-        // For now, we'll start with an empty array
-        messages = []
+        guard let currentUserId = authManager.currentUser?.id else { return }
+        
+        // Get or create conversation
+        if let existingConversationId = conversationId {
+            currentConversationId = existingConversationId
+            messagesManager.loadMessages(conversationId: existingConversationId)
+            messagesManager.markAsRead(conversationId: existingConversationId, userId: currentUserId)
+        } else {
+            // Create new conversation
+            messagesManager.getOrCreateConversation(userId1: currentUserId, userId2: friendId) { [weak self] conversationId in
+                guard let self = self, let conversationId = conversationId else { return }
+                self.currentConversationId = conversationId
+                self.messagesManager.loadMessages(conversationId: conversationId)
+                self.messagesManager.markAsRead(conversationId: conversationId, userId: currentUserId)
+            }
+        }
     }
 }
 

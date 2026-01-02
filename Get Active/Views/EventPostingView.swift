@@ -344,14 +344,75 @@ struct EventPostingView: View {
             customImages: imageNames // Store all image names
         )
         
-        eventManager.events.append(newEvent)
-        
-        // Force a refresh of the event manager to update views
-        DispatchQueue.main.async {
-            eventManager.objectWillChange.send()
+        // Upload images to Firebase Storage if using Firebase
+        if eventManager.useFirebase {
+            uploadEventImagesAndCreateEvent(newEvent, imageNames: imageNames)
+        } else {
+            // Local storage
+            eventManager.events.append(newEvent)
+            DispatchQueue.main.async {
+                eventManager.objectWillChange.send()
+            }
+            dismiss()
+        }
+    }
+    
+    private func uploadEventImagesAndCreateEvent(_ event: Event, imageNames: [String]) {
+        guard !imageNames.isEmpty else {
+            // No images, just create event
+            createEventInFirebase(event)
+            return
         }
         
-        dismiss()
+        // Upload images to Firebase Storage
+        let fileManager = FileManager.default
+        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        var uploadedImageUrls: [String] = []
+        var uploadCount = 0
+        
+        for imageName in imageNames {
+            let filePath = documentsPath.appendingPathComponent(imageName)
+            
+            guard let imageData = try? Data(contentsOf: filePath) else {
+                continue
+            }
+            
+            let storagePath = "events/\(event.id)/\(imageName)"
+            FirebaseService.shared.uploadImage(imageData, path: storagePath) { result in
+                uploadCount += 1
+                
+                switch result {
+                case .success(let url):
+                    uploadedImageUrls.append(url)
+                case .failure(let error):
+                    print("Error uploading image: \(error.localizedDescription)")
+                }
+                
+                // When all images are processed, create event
+                if uploadCount == imageNames.count {
+                    var eventWithImages = event
+                    eventWithImages.customImages = uploadedImageUrls
+                    self.createEventInFirebase(eventWithImages)
+                }
+            }
+        }
+    }
+    
+    private func createEventInFirebase(_ event: Event) {
+        FirebaseService.shared.createEvent(event) { [weak self] result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let eventId):
+                    print("✅ Event created in Firebase with ID: \(eventId)")
+                    self?.dismiss()
+                case .failure(let error):
+                    print("❌ Error creating event: \(error.localizedDescription)")
+                    // Show error to user
+                    // For now, just dismiss - in production, show alert
+                    self?.dismiss()
+                }
+            }
+        }
     }
 }
 

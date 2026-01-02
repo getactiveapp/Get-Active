@@ -4,6 +4,8 @@ import FirebaseAuth
 import FirebaseFirestore
 import FirebaseStorage
 
+typealias ListenerRegistration = Firestore.ListenerRegistration
+
 /// Firebase service layer for backend integration
 class FirebaseService {
     static let shared = FirebaseService()

@@ -283,7 +283,7 @@ struct FriendProfileView: View {
             }
             .sheet(isPresented: $showingChat) {
                 NavigationView {
-                    ChatView(friendId: friendId, friendName: friendName)
+                    ChatView(conversationId: nil, friendId: friendId, friendName: friendName)
                         .environmentObject(authManager)
                 }
             }
