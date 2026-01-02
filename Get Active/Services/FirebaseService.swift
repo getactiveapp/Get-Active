@@ -45,8 +45,8 @@ class FirebaseService {
             var userDataWithId = userData
             userDataWithId["id"] = user.uid
             userDataWithId["email"] = email
-            userDataWithId["createdAt"] = Timestamp()
-            userDataWithId["updatedAt"] = Timestamp()
+            userDataWithId["createdAt"] = Timestamp(date: Date())
+            userDataWithId["updatedAt"] = Timestamp(date: Date())
             
             self?.db.collection("users").document(user.uid).setData(userDataWithId) { error in
                 if let error = error {
@@ -200,8 +200,8 @@ class FirebaseService {
     /// Create event
     func createEvent(_ event: Event, completion: @escaping (Result<String, Error>) -> Void) {
         var eventData = convertEventToFirestoreData(event)
-        eventData["createdAt"] = Timestamp()
-        eventData["updatedAt"] = Timestamp()
+        eventData["createdAt"] = Timestamp(date: Date())
+        eventData["updatedAt"] = Timestamp(date: Date())
         
         var ref: DocumentReference?
         ref = db.collection("events").addDocument(data: eventData) { error in
