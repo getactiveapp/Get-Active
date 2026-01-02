@@ -246,7 +246,7 @@ class FirebaseService {
         }
         
         var eventData = convertEventToFirestoreData(event)
-        eventData["updatedAt"] = Timestamp()
+        eventData["updatedAt"] = Timestamp(date: Date())
         
         db.collection("events").document(event.id).updateData(eventData) { error in
             if let error = error {
