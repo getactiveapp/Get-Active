@@ -78,12 +78,13 @@ struct TwoFactorAuthView: View {
                         .cornerRadius(12)
                         .frame(maxWidth: 200)
                     
-                    // Demo code display (remove in production)
+                    // Debug mode: Show code if email fails (only in DEBUG builds)
+                    #if DEBUG
                     if let demoCode = sentCode {
                         VStack(spacing: 8) {
-                            Text("Demo Code (remove in production):")
+                            Text("Debug Code (email failed):")
                                 .font(.system(size: 12, weight: .regular))
-                                .foregroundColor(.gray)
+                                .foregroundColor(.orange)
                             Text(demoCode)
                                 .font(.system(size: 20, weight: .bold))
                                 .foregroundColor(.getActiveRed)
@@ -92,6 +93,7 @@ struct TwoFactorAuthView: View {
                         .background(Color.gray.opacity(0.1))
                         .cornerRadius(8)
                     }
+                    #endif
                     
                     // Resend Code Button
                     Button(action: {
@@ -144,10 +146,12 @@ struct TwoFactorAuthView: View {
             isSendingCode = false
             if success {
                 codeSent = true
-                // For demo - remove in production
-                if let demoCode = code {
-                    sentCode = demoCode
+                // Only store code in DEBUG mode if email service failed
+                #if DEBUG
+                if let debugCode = code {
+                    sentCode = debugCode
                 }
+                #endif
             } else {
                 errorMessage = code ?? "Failed to send verification code"
                 showingError = true

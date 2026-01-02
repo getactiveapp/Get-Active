@@ -17,6 +17,7 @@ struct ProfileView: View {
     @State private var showingAccountSettings = false
     @State private var showingFriendFinderSettings = false
     @State private var showingNotificationSettings = false
+    @State private var showingOpenAIConfig = false
     @State private var showingDeleteAccountAlert = false
     @State private var selectedEvent: Event?
     @State private var isRefreshing = false
@@ -369,6 +370,10 @@ struct ProfileView: View {
                                     showingNotificationSettings = true
                                 })
                                 
+                                SettingsRow(icon: "key.fill", title: "OpenAI API Key", color: .getActiveRed, action: {
+                                    showingOpenAIConfig = true
+                                })
+                                
                                 if authManager.currentUser?.accountType == .activeMember {
                                     SettingsRow(icon: "doc.text.fill", title: "My Membership", color: .getActiveRed) {
                                         showingMembership = true
@@ -493,6 +498,9 @@ struct ProfileView: View {
                 NotificationSettingsView()
                     .environmentObject(authManager)
                     .environmentObject(eventManager)
+            }
+            .sheet(isPresented: $showingOpenAIConfig) {
+                OpenAIConfigView()
             }
             .sheet(item: $selectedEvent) { event in
                 NavigationView {
