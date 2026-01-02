@@ -13,15 +13,26 @@ class AIChatManager: ObservableObject {
     private let conversationMemoryKey = "AIChatManager_ConversationHistory"
     
     // OpenAI API Configuration
-    // NOTE: In production, store this securely in Keychain or environment variables
-    // For now, you'll need to set your OpenAI API key here or via environment variable
-    private let apiKey: String = {
-        if let key = ProcessInfo.processInfo.environment["OPENAI_API_KEY"], !key.isEmpty {
+    // Securely stored in Keychain
+    private var apiKey: String? {
+        // First, try to get from Keychain
+        if let key = SecureKeyManager.shared.getOpenAIAPIKey(), !key.isEmpty {
             return key
         }
-        // Fallback: Replace with your API key or load from secure storage
-        return "YOUR_OPENAI_API_KEY_HERE" // Replace with actual key
-    }()
+        // Fallback to environment variable (for development)
+        if let key = ProcessInfo.processInfo.environment["OPENAI_API_KEY"], !key.isEmpty {
+            // Save to Keychain for future use
+            SecureKeyManager.shared.saveOpenAIAPIKey(key)
+            return key
+        }
+        // Return nil if no key found
+        return nil
+    }
+    
+    /// Set OpenAI API key securely
+    func setOpenAIAPIKey(_ key: String) -> Bool {
+        return SecureKeyManager.shared.saveOpenAIAPIKey(key)
+    }
     
     private let apiURL = "https://api.openai.com/v1/chat/completions"
     
@@ -396,7 +407,7 @@ class AIChatManager: ObservableObject {
     }
     
     private func generateOpenAIResponse(for userInput: String) async {
-        guard apiKey != "YOUR_OPENAI_API_KEY_HERE" else {
+        guard let key = apiKey, !key.isEmpty else {
             // Fallback to local responses if API key not set
             await MainActor.run {
                 let response = generateFallbackResponse(for: userInput)
@@ -451,7 +462,7 @@ class AIChatManager: ObservableObject {
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         do {

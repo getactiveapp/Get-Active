@@ -227,7 +227,7 @@ struct UniversityEventCard: View {
                     } else {
                         user.favoriteEventIds.removeAll { $0 == event.id }
                     }
-                    authManager.currentUser = user
+                    authManager.updateUser(user)
                     // Ensure favorites list is updated
                     eventManager.updateFavoriteEvents(userId: userId)
                 }

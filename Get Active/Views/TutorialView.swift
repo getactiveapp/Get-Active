@@ -137,11 +137,17 @@ struct TutorialView: View {
                     .frame(width: 80, height: 50)
                     .position(x: getTabPosition(for: currentStep.highlightTab ?? 0, in: geometry), y: geometry.size.height - 30)
             case .profile:
-                // Highlight profile button (top right)
+                // Highlight profile button (top right) - aligned with actual profile picture
+                let profileSize = DeviceSize.profileImageSize
+                let horizontalPadding = DeviceSize.horizontalPadding
+                let topPadding: CGFloat = DeviceSize.isPad ? 20 : 10
+                let profileX = geometry.size.width - horizontalPadding - (profileSize / 2)
+                let profileY = topPadding + (profileSize / 2)
+                
                 Circle()
                     .stroke(Color.getActiveRed, lineWidth: 4)
-                    .frame(width: 50, height: 50)
-                    .position(x: geometry.size.width - 50, y: 60)
+                    .frame(width: profileSize + 8, height: profileSize + 8)
+                    .position(x: profileX, y: profileY)
             }
         }
     }

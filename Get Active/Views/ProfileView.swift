@@ -17,6 +17,7 @@ struct ProfileView: View {
     @State private var showingAccountSettings = false
     @State private var showingFriendFinderSettings = false
     @State private var showingNotificationSettings = false
+    @State private var showingDeleteAccountAlert = false
     @State private var selectedEvent: Event?
     @State private var isRefreshing = false
     @State private var profileImage: UIImage?
@@ -400,6 +401,10 @@ struct ProfileView: View {
                                     showingHelp = true
                                 }
                                 
+                                SettingsRow(icon: "trash.fill", title: "Delete Account", color: .red, isLogout: false) {
+                                    showingDeleteAccountAlert = true
+                                }
+                                
                                 SettingsRow(icon: "arrow.right.square.fill", title: "Logout", color: .getActiveRed, isLogout: true) {
                                     authManager.logout()
                                 }
@@ -459,6 +464,18 @@ struct ProfileView: View {
             }
             .sheet(isPresented: $showingHelp) {
                 HelpSupportView()
+            }
+            .alert("Delete Account", isPresented: $showingDeleteAccountAlert) {
+                Button("Cancel", role: .cancel) { }
+                Button("Delete", role: .destructive) {
+                    authManager.deleteAccount { success in
+                        if success {
+                            // Account deleted, user will be logged out automatically
+                        }
+                    }
+                }
+            } message: {
+                Text("Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently deleted.")
             }
             .sheet(isPresented: $showingAccountSettings) {
                 AccountSettingsView()

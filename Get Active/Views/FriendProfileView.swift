@@ -344,7 +344,7 @@ struct FriendProfileView: View {
         // Remove friend from current user's friends list
         if var user = authManager.currentUser {
             user.friends.removeAll { $0 == friendId }
-            authManager.currentUser = user
+            authManager.updateUser(user)
             dismiss()
         }
     }

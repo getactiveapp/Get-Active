@@ -3,6 +3,7 @@ import SwiftUI
 struct AddFriendConfirmationView: View {
     let friendName: String
     @Binding var isPresented: Bool
+    var onDismiss: (() -> Void)?
     
     var body: some View {
         NavigationView {
@@ -46,6 +47,10 @@ struct AddFriendConfirmationView: View {
                     // Action button
                     Button(action: {
                         isPresented = false
+                        // Call the onDismiss callback after a brief delay to allow the sheet to dismiss
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            onDismiss?()
+                        }
                     }) {
                         Text("Got it!")
                             .font(.system(size: DeviceSize.isPad ? 20 : 18, weight: .semibold))
@@ -64,6 +69,9 @@ struct AddFriendConfirmationView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: {
                         isPresented = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            onDismiss?()
+                        }
                     }) {
                         Image(systemName: "xmark")
                             .font(.system(size: 16, weight: .semibold))

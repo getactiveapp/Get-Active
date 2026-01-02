@@ -153,12 +153,44 @@ struct AccountSettingsView: View {
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 10)
+                        
+                        // Delete Account Button
+                        Button(action: {
+                            showingDeleteConfirmation = true
+                        }) {
+                            Text("Delete Account")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(.red)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 55)
+                                .background(Color.red.opacity(0.1))
+                                .cornerRadius(12)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.red, lineWidth: 1)
+                                )
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 20)
                     }
                     .padding(.vertical, 20)
                 }
             }
         }
         .navigationBarHidden(true)
+        .alert("Delete Account", isPresented: $showingDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                authManager.deleteAccount { success in
+                    if success {
+                        // Account deleted, user will be logged out automatically
+                        dismiss()
+                    }
+                }
+            }
+        } message: {
+            Text("Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently deleted.")
+        }
         .onAppear {
             // Load current bio and profile image
             bio = authManager.currentUser?.bio ?? ""
@@ -228,8 +260,8 @@ struct AccountSettingsView: View {
         // Update bio
         user.bio = bio.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        // Save user changes
-        authManager.currentUser = user
+        // Save user changes using the updateUser method
+        authManager.updateUser(user)
         
         dismiss()
     }

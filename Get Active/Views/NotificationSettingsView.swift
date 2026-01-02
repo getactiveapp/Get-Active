@@ -100,7 +100,7 @@ struct NotificationSettingsView: View {
     private func savePreference() {
         guard var user = authManager.currentUser else { return }
         user.notificationAdvanceMinutes = selectedAdvanceMinutes
-        authManager.currentUser = user
+        authManager.updateUser(user)
         
         // Reschedule all notifications with new preference
         let userId = user.id

@@ -209,7 +209,7 @@ struct TodayEventCard: View {
                     } else {
                         user.favoriteEventIds.removeAll { $0 == event.id }
                     }
-                    authManager.currentUser = user
+                    authManager.updateUser(user)
                     eventManager.updateFavoriteEvents(userId: userId)
                 }
             }) {

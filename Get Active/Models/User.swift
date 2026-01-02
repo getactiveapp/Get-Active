@@ -7,6 +7,9 @@ enum AccountType: String, Codable {
 
 struct User: Identifiable, Codable {
     let id: String
+    var email: String
+    var username: String
+    var password: String // In production, this should be hashed
     var name: String
     var university: String
     var year: String
@@ -19,8 +22,11 @@ struct User: Identifiable, Codable {
     var friendFinderDescription: String // Personal description for Friend Finder
     var notificationAdvanceMinutes: Int // Minutes before event to send notification (15, 30, or 50)
     
-    init(id: String = UUID().uuidString, name: String, university: String, year: String, profileImageName: String? = nil, bio: String = "", accountType: AccountType, friends: [String] = [], favoriteEventIds: [String] = [], friendFinderImageName: String? = nil, friendFinderDescription: String = "", notificationAdvanceMinutes: Int = 30) {
+    init(id: String = UUID().uuidString, email: String, username: String, password: String, name: String, university: String, year: String, profileImageName: String? = nil, bio: String = "", accountType: AccountType, friends: [String] = [], favoriteEventIds: [String] = [], friendFinderImageName: String? = nil, friendFinderDescription: String = "", notificationAdvanceMinutes: Int = 30) {
         self.id = id
+        self.email = email
+        self.username = username
+        self.password = password
         self.name = name
         self.university = university
         self.year = year

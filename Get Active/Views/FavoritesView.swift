@@ -266,7 +266,7 @@ struct FavoriteEventCard: View {
                 // Update user's favoriteEventIds
                 if var user = authManager.currentUser {
                     user.favoriteEventIds.removeAll { $0 == event.id }
-                    authManager.currentUser = user
+                    authManager.updateUser(user)
                 }
                 
                 // Update favorites list

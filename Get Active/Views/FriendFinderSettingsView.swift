@@ -274,7 +274,7 @@ struct FriendFinderSettingsView: View {
         user.friendFinderDescription = description.trimmingCharacters(in: .whitespacesAndNewlines)
         
         // Save user changes
-        authManager.currentUser = user
+        authManager.updateUser(user)
         
         dismiss()
     }

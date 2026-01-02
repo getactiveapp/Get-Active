@@ -409,7 +409,7 @@ struct EventDetailView: View {
                 // Now unliked - remove from favorites
                 user.favoriteEventIds.removeAll { $0 == event.id }
             }
-            authManager.currentUser = user
+            authManager.updateUser(user)
             // Ensure favorites list is updated
             eventManager.updateFavoriteEvents(userId: userId)
         }
@@ -434,7 +434,7 @@ struct EventDetailView: View {
                 // Remove from favorites
                 if var user = authManager.currentUser {
                     user.favoriteEventIds.removeAll { $0 == event.id }
-                    authManager.currentUser = user
+                    authManager.updateUser(user)
                 }
             } else {
                 // User is RSVP'ing - add to rsvpBy and attending
@@ -456,7 +456,7 @@ struct EventDetailView: View {
                     if !user.favoriteEventIds.contains(event.id) {
                         user.favoriteEventIds.append(event.id)
                     }
-                    authManager.currentUser = user
+                    authManager.updateUser(user)
                 }
             }
             

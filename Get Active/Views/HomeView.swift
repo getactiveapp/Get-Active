@@ -415,7 +415,7 @@ struct FeaturedEventCard: View {
                                     // Now unliked - remove from favorites
                                     user.favoriteEventIds.removeAll { $0 == event.id }
                                 }
-                                authManager.currentUser = user
+                                authManager.updateUser(user)
                                 // Ensure favorites list is updated
                                 eventManager.updateFavoriteEvents(userId: userId)
                             }
@@ -583,7 +583,7 @@ struct EventCard: View {
                                         // Now unliked - remove from favorites
                                         user.favoriteEventIds.removeAll { $0 == event.id }
                                     }
-                                    authManager.currentUser = user
+                                    authManager.updateUser(user)
                                     // Ensure favorites list is updated
                                     eventManager.updateFavoriteEvents(userId: userId)
                                 }
@@ -1007,7 +1007,7 @@ struct AllEventCard: View {
                     } else {
                         user.favoriteEventIds.removeAll { $0 == event.id }
                     }
-                    authManager.currentUser = user
+                    authManager.updateUser(user)
                     eventManager.updateFavoriteEvents(userId: userId)
                 }
                 onFavoriteToggle?()

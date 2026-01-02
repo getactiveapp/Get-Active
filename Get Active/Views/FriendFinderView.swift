@@ -69,10 +69,7 @@ struct FriendFinderView: View {
                     ZStack {
                         // Background cards (stacked effect)
                         if currentProfileIndex + 1 < profiles.count {
-                            ProfileCard(profile: profiles[currentProfileIndex + 1], onViewProfile: {
-                                selectedProfile = profiles[currentProfileIndex + 1]
-                                showingProfileDetail = true
-                            })
+                            ProfileCard(profile: profiles[currentProfileIndex + 1], onAddFriend: nil)
                             .environmentObject(authManager)
                             .scaleEffect(0.95)
                             .opacity(0.7)
@@ -80,10 +77,7 @@ struct FriendFinderView: View {
                         }
                         
                         if currentProfileIndex + 2 < profiles.count {
-                            ProfileCard(profile: profiles[currentProfileIndex + 2], onViewProfile: {
-                                selectedProfile = profiles[currentProfileIndex + 2]
-                                showingProfileDetail = true
-                            })
+                            ProfileCard(profile: profiles[currentProfileIndex + 2], onAddFriend: nil)
                             .environmentObject(authManager)
                             .scaleEffect(0.9)
                             .opacity(0.5)
@@ -91,10 +85,24 @@ struct FriendFinderView: View {
                         }
                         
                         // Current card
-                        ProfileCard(profile: profiles[currentProfileIndex], onViewProfile: {
-                            selectedProfile = profiles[currentProfileIndex]
-                            showingProfileDetail = true
+                        ProfileCard(profile: profiles[currentProfileIndex], onAddFriend: {
+                            // Add current index to history before moving
+                            if currentProfileIndex < profiles.count {
+                                profileHistory.append(currentProfileIndex)
+                            }
+                            
+                            // Animate card off screen to the right
+                            withAnimation(.spring()) {
+                                dragOffset = CGSize(width: 1000, height: 0)
+                                rotationAngle = 30
+                            }
+                            
+                            // Move to next profile after animation
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                moveToNextProfile()
+                            }
                         })
+                        .id(profiles[currentProfileIndex].id)
                         .environmentObject(authManager)
                         .offset(dragOffset)
                         .rotationEffect(.degrees(rotationAngle))
@@ -202,7 +210,22 @@ struct FriendFinderView: View {
         }
         .sheet(isPresented: $showingProfileDetail) {
             if let profile = selectedProfile {
-                ProfileDetailSheet(profile: profile)
+                NavigationView {
+                    ProfileDetailSheet(profile: profile)
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .navigationBarTrailing) {
+                                Button(action: {
+                                    showingProfileDetail = false
+                                }) {
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(.white)
+                                }
+                            }
+                        }
+                }
+                .preferredColorScheme(.dark)
             }
         }
         .sheet(isPresented: $showingFilter) {
@@ -375,7 +398,7 @@ struct FriendFinderView: View {
 
 struct ProfileCard: View {
     let profile: DiscoverableProfile
-    let onViewProfile: () -> Void
+    var onAddFriend: (() -> Void)?
     @EnvironmentObject var authManager: AuthenticationManager
     @State private var imageLoaded: UIImage?
     @State private var profileImageLoaded: UIImage?
@@ -495,25 +518,6 @@ struct ProfileCard: View {
                             }
                         }
                     }
-                    
-                    // View Profile Button
-                    Button(action: onViewProfile) {
-                        HStack {
-                            Text("View Profile")
-                                .font(.system(size: DeviceSize.bodyFontSize, weight: .semibold))
-                                .foregroundColor(.white)
-                            
-                            Spacer()
-                            
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: DeviceSize.iconSize))
-                                .foregroundColor(.white)
-                        }
-                        .padding(.horizontal, DeviceSize.horizontalPadding * 0.8)
-                        .padding(.vertical, DeviceSize.isPad ? 14 : 12)
-                        .background(Color.gray.opacity(0.3))
-                        .cornerRadius(12)
-                    }
                 }
                 .padding(.horizontal, DeviceSize.horizontalPadding)
                 .padding(.bottom, DeviceSize.isPad ? 30 : 20)
@@ -524,14 +528,69 @@ struct ProfileCard: View {
         .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 5)
         .onAppear {
             loadProfileImage()
+            // Reset state first, then check
+            isFriend = false
+            showingAddFriendConfirmation = false
             checkIfFriend()
+        }
+        .onChange(of: profile.id) { _ in
+            // Reset friend state when profile changes
+            isFriend = false
+            showingAddFriendConfirmation = false
+            checkIfFriend()
+        }
+        .sheet(isPresented: $showingAddFriendConfirmation) {
+            AddFriendConfirmationView(
+                friendName: profile.name,
+                isPresented: $showingAddFriendConfirmation,
+                onDismiss: {
+                    onAddFriend?()
+                }
+            )
         }
     }
     
     private func loadProfileImage() {
         // Load profile image if available
-        // For now, we'll use a placeholder
-        // In a real app, you'd load from URL or local storage
+        if let imageName = profile.profileImageName {
+            // In a real app, you'd load from URL or local storage
+            Task {
+                // Simulate loading - in real app, load from storage/URL
+                await MainActor.run {
+                    // Placeholder - you can add actual image loading here
+                }
+            }
+        }
+    }
+    
+    private func checkIfFriend() {
+        guard let userId = authManager.currentUser?.id else { return }
+        // Check if this profile is already a friend
+        // For now, we'll check by ID - in a real app, you'd have a friends list
+        isFriend = authManager.currentUser?.friends.contains(profile.id) ?? false
+    }
+    
+    private func handleAddFriend() {
+        guard let userId = authManager.currentUser?.id else { return }
+        
+        if !isFriend {
+            // Add friend
+            if var user = authManager.currentUser {
+                if !user.friends.contains(profile.id) {
+                    user.friends.append(profile.id)
+                    authManager.updateUser(user)
+                }
+                isFriend = true
+                showingAddFriendConfirmation = true
+            }
+        } else {
+            // Remove friend
+            if var user = authManager.currentUser {
+                user.friends.removeAll { $0 == profile.id }
+                authManager.updateUser(user)
+                isFriend = false
+            }
+        }
     }
 }
 
@@ -549,14 +608,14 @@ struct ProfileDetailSheet: View {
                     // Profile Image Section (Red area)
                     ZStack {
                         Color.getActiveRed
-                            .frame(height: DeviceSize.screenHeight * 0.35)
+                            .frame(height: DeviceSize.isPad ? 350 : 280)
                         
                         // Profile image
                         if let profileImage = profileImageLoaded {
                             Image(uiImage: profileImage)
                                 .resizable()
                                 .scaledToFill()
-                                .frame(width: DeviceSize.screenWidth, height: DeviceSize.screenHeight * 0.35)
+                                .frame(width: UIScreen.main.bounds.width, height: DeviceSize.isPad ? 350 : 280)
                                 .clipped()
                         } else {
                             // Placeholder circle with initial
@@ -642,18 +701,6 @@ struct ProfileDetailSheet: View {
                     }
                     .padding(.horizontal, DeviceSize.horizontalPadding)
                     .padding(.bottom, DeviceSize.tabBarHeight + 20)
-                }
-            }
-        }
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button(action: {
-                    dismiss()
-                }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
                 }
             }
         }
