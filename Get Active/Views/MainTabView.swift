@@ -117,6 +117,10 @@ struct MainTabView: View {
                     selectedTab = 0
                 }
             }
+            .onChange(of: authManager.currentUser?.id) { _, newUserId in
+                // Update EventManager when user changes
+                eventManager.setCurrentUserId(newUserId)
+            }
         }
         .sheet(isPresented: $showingEventPost) {
             EventPostingView(eventManager: eventManager)
