@@ -1,0 +1,21 @@
+import Foundation
+
+/// OpenAI API configuration
+/// 
+/// INSTRUCTIONS:
+/// 1. Copy this file and rename it to OpenAIConfig.swift
+/// 2. Add your actual OpenAI API key below
+/// 3. This file is gitignored - your API key will NOT be committed to GitHub
+struct OpenAIConfig {
+    /// OpenAI API Key
+    /// Get your key from: https://platform.openai.com/api-keys
+    /// ⚠️ IMPORTANT: This file is gitignored. Never commit your actual API key!
+    static let apiKey: String? = "sk-your-api-key-here"
+    
+    // MARK: - Helper
+    
+    /// Check if OpenAI is configured
+    static var isConfigured: Bool {
+        return apiKey != nil && !apiKey!.isEmpty && apiKey != "sk-your-api-key-here"
+    }
+}

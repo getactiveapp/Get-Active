@@ -8,6 +8,9 @@ struct Get_ActiveApp: App {
     init() {
         // Configure email service automatically on app startup
         configureEmailService()
+        
+        // Configure OpenAI API key automatically on app startup
+        configureOpenAI()
     }
     
     var body: some Scene {
@@ -89,5 +92,39 @@ struct Get_ActiveApp: App {
         
         // If still not configured, log a warning
         print("⚠️ Email service not configured. Set SENDGRID_API_KEY environment variable or configure in EmailConfig.swift")
+    }
+    
+    /// Automatically configure OpenAI API key from config file or environment
+    private func configureOpenAI() {
+        let chatManager = AIChatManager.shared
+        
+        // Check if already configured (has API key in Keychain)
+        if let existingKey = SecureKeyManager.shared.getOpenAIAPIKey(), !existingKey.isEmpty {
+            print("✅ OpenAI API key already configured from Keychain")
+            return
+        }
+        
+        // Priority 1: Check OpenAIConfig file (for local development)
+        if let configKey = OpenAIConfig.apiKey, !configKey.isEmpty, configKey != "sk-your-api-key-here" {
+            if chatManager.setOpenAIAPIKey(configKey) {
+                print("✅ OpenAI API key configured from OpenAIConfig.swift")
+            } else {
+                print("⚠️ Failed to save OpenAI API key to Keychain")
+            }
+            return
+        }
+        
+        // Priority 2: Try to configure from environment variable
+        if let envKey = ProcessInfo.processInfo.environment["OPENAI_API_KEY"], !envKey.isEmpty {
+            if chatManager.setOpenAIAPIKey(envKey) {
+                print("✅ OpenAI API key configured from environment variable")
+            } else {
+                print("⚠️ Failed to save OpenAI API key to Keychain")
+            }
+            return
+        }
+        
+        // If still not configured, log a warning
+        print("⚠️ OpenAI API key not configured. Set OPENAI_API_KEY environment variable or configure in OpenAIConfig.swift or use the app settings.")
     }
 }
