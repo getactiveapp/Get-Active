@@ -131,7 +131,7 @@ class FirebaseService {
             return
         }
         
-        let userData = convertToFirestoreData(user)
+        var userData = convertToFirestoreData(user)
         userData["updatedAt"] = Timestamp()
         
         db.collection("users").document(uid).updateData(userData) { error in
@@ -199,7 +199,7 @@ class FirebaseService {
     
     /// Create event
     func createEvent(_ event: Event, completion: @escaping (Result<String, Error>) -> Void) {
-        let eventData = convertEventToFirestoreData(event)
+        var eventData = convertEventToFirestoreData(event)
         eventData["createdAt"] = Timestamp()
         eventData["updatedAt"] = Timestamp()
         
