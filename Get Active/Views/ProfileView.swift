@@ -19,10 +19,6 @@ struct ProfileView: View {
     @State private var showingNotificationSettings = false
     @State private var showingDeleteAccountAlert = false
     @State private var showingUserSearch = false
-    @State private var showingDataDashboard = false
-    @State private var showingFirebaseDiagnostic = false
-    @State private var diagnosticReport = ""
-    @State private var isRunningDiagnostic = false
     @State private var selectedEvent: Event?
     @State private var isRefreshing = false
     @State private var profileImage: UIImage?
@@ -406,20 +402,6 @@ struct ProfileView: View {
                                     showingUserSearch = true
                                 }
                                 
-                                SettingsRow(icon: "chart.line.uptrend.xyaxis", title: "Data Dashboard", color: .getActiveRed) {
-                                    showingDataDashboard = true
-                                }
-                                
-                                SettingsRow(icon: "stethoscope", title: "Firebase Diagnostic", color: .orange) {
-                                    isRunningDiagnostic = true
-                                    FirebaseService.shared.diagnoseFirebaseConnection { report in
-                                        diagnosticReport = report
-                                        isRunningDiagnostic = false
-                                        showingFirebaseDiagnostic = true
-                                        print("\n\(report)")
-                                    }
-                                }
-                                
                                 SettingsRow(icon: "questionmark.circle.fill", title: "Help & Support", color: .getActiveRed) {
                                     showingHelp = true
                                 }
@@ -515,63 +497,6 @@ struct ProfileView: View {
                 NavigationView {
                     UserSearchView()
                         .environmentObject(authManager)
-                }
-            }
-            .sheet(isPresented: $showingDataDashboard) {
-                DataDashboardView()
-                    .environmentObject(authManager)
-            }
-            .sheet(isPresented: $showingFirebaseDiagnostic) {
-                NavigationView {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("Firebase Diagnostic Report")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                                .foregroundColor(.white)
-                                .padding(.horizontal)
-                                .padding(.top)
-                            
-                            Text(diagnosticReport)
-                                .font(.system(.body, design: .monospaced))
-                                .foregroundColor(.white)
-                                .padding()
-                                .background(Color.gray.opacity(0.2))
-                                .cornerRadius(10)
-                                .padding(.horizontal)
-                        }
-                    }
-                    .background(Color.getActiveBlack)
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            Button("Done") {
-                                showingFirebaseDiagnostic = false
-                            }
-                            .foregroundColor(.white)
-                        }
-                    }
-                }
-            }
-            .overlay {
-                if isRunningDiagnostic {
-                    ZStack {
-                        Color.black.opacity(0.7)
-                            .ignoresSafeArea()
-                        
-                        VStack(spacing: 20) {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                .scaleEffect(1.5)
-                            
-                            Text("Running Firebase Diagnostic...")
-                                .foregroundColor(.white)
-                                .font(.headline)
-                        }
-                        .padding(30)
-                        .background(Color.getActiveBlack)
-                        .cornerRadius(15)
-                    }
                 }
             }
             .sheet(item: $selectedEvent) { event in
