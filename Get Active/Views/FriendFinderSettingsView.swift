@@ -284,3 +284,7 @@ struct FriendFinderSettingsView: View {
     FriendFinderSettingsView()
         .environmentObject(AuthenticationManager())
 }
+
+
+
+

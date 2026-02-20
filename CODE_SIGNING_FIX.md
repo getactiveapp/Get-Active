@@ -44,3 +44,7 @@ If you need to test immediately, you can run on the iOS Simulator instead of a p
 2. Remove and re-add your Apple ID in Xcode Settings
 3. Check that your device UDID is registered in your developer account
 
+
+
+
+

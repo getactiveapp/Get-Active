@@ -103,3 +103,7 @@ DeviceSize.adaptiveColumns()  // Responsive grid columns
 - `MAC_CATALYST_SETUP.md` - Detailed Mac Catalyst setup guide
 - `IPAD_MAC_SUPPORT.md` - General support documentation
 
+
+
+
+

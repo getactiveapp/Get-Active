@@ -16,7 +16,7 @@ class EmailService {
     
     private var provider: Provider = .sendGrid
     private var apiKey: String?
-    private var fromEmail: String = "noreply@getactive.app"
+    private var fromEmail: String = "GetActive.engage@gmail.com"
     private var fromName: String = "Get Active"
     
     /// Check if email service is configured
@@ -89,10 +89,21 @@ class EmailService {
     
     /// Send 2FA verification code via email
     func send2FACode(to email: String, code: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        print("📧 Preparing to send 2FA code to: \(email)")
+        print("📧 Email service configured: \(isConfigured), Provider: \(provider)")
+        
         let subject = "Your Get Active Verification Code"
         let body = generate2FAEmailBody(code: code)
         
-        sendEmail(to: email, subject: subject, body: body, isHTML: true, completion: completion)
+        sendEmail(to: email, subject: subject, body: body, isHTML: true, completion: { result in
+            switch result {
+            case .success:
+                print("✅ 2FA code email sent successfully to: \(email)")
+            case .failure(let error):
+                print("❌ Failed to send 2FA code email to \(email): \(error.localizedDescription)")
+            }
+            completion(result)
+        })
     }
     
     // MARK: - Send Email
@@ -100,9 +111,12 @@ class EmailService {
     /// Send email using configured provider
     private func sendEmail(to: String, subject: String, body: String, isHTML: Bool, completion: @escaping (Result<Void, Error>) -> Void) {
         guard let apiKey = apiKey, !apiKey.isEmpty else {
+            print("❌ Email service not configured - API key is missing")
             completion(.failure(NSError(domain: "EmailService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Email service not configured. Please set API key."])))
             return
         }
+        
+        print("📧 Attempting to send email via \(provider) to: \(to), subject: \(subject)")
         
         switch provider {
         case .sendGrid:
@@ -149,18 +163,28 @@ class EmailService {
         
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
+                print("❌ SendGrid network error: \(error.localizedDescription)")
                 completion(.failure(error))
                 return
             }
             
             if let httpResponse = response as? HTTPURLResponse {
                 if (200...299).contains(httpResponse.statusCode) {
+                    print("✅ Email sent successfully via SendGrid to: \(to)")
                     completion(.success(()))
                 } else {
-                    let error = NSError(domain: "EmailService", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "SendGrid API error: \(httpResponse.statusCode)"])
+                    // Read error response body for debugging
+                    var errorMessage = "SendGrid API error: \(httpResponse.statusCode)"
+                    if let data = data, let responseString = String(data: data, encoding: .utf8) {
+                        errorMessage += " - \(responseString)"
+                        print("❌ SendGrid API error response: \(responseString)")
+                    }
+                    print("❌ SendGrid API error - Status: \(httpResponse.statusCode), To: \(to), From: \(self.fromEmail)")
+                    let error = NSError(domain: "EmailService", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: errorMessage])
                     completion(.failure(error))
                 }
             } else {
+                print("❌ SendGrid invalid response")
                 completion(.failure(NSError(domain: "EmailService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])))
             }
         }.resume()

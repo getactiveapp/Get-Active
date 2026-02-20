@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import CommonCrypto
 
 /// Secure storage manager using iOS Keychain for sensitive data
 class SecureKeyManager {
@@ -161,6 +162,23 @@ class SecureKeyManager {
         delete("2fa_code")
     }
     
+    // MARK: - Promo Codes
+    
+    /// Get the valid promo code hash for verification
+    /// This uses a hash comparison so the actual code isn't stored in plain text
+    private func getPromoCodeHash() -> String {
+        // Store hash of the promo code (not the actual code)
+        // This is a SHA256 hash of the promo code
+        return "d2a5ac3c0df833ac238a16cf821471ef31015d1dd3159aa6ea38cde3e5e5c519"
+    }
+    
+    /// Verify if a promo code is valid
+    func verifyPromoCode(_ code: String) -> Bool {
+        // Compare hash of input with stored hash
+        let inputHash = code.sha256()
+        return inputHash == getPromoCodeHash()
+    }
+    
     // MARK: - Clear All
     
     /// Clear all stored keys (for logout)
@@ -172,3 +190,18 @@ class SecureKeyManager {
         delete2FACode()
     }
 }
+
+// Extension to compute SHA256 hash
+extension String {
+    func sha256() -> String {
+        guard let data = self.data(using: .utf8) else { return "" }
+        var hash = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
+        data.withUnsafeBytes {
+            _ = CC_SHA256($0.baseAddress, CC_LONG(data.count), &hash)
+        }
+        return hash.map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+
+

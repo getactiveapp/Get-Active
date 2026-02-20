@@ -3,8 +3,6 @@ import SwiftUI
 import FirebaseCore
 import FirebaseFirestore
 
-typealias ListenerRegistration = Firestore.ListenerRegistration
-
 class MessagesManager: ObservableObject {
     static let shared = MessagesManager()
     
@@ -12,8 +10,8 @@ class MessagesManager: ObservableObject {
     @Published var messages: [String: [ChatMessage]] = [:] // Key: conversationId, Value: messages
     
     private let db = Firestore.firestore()
-    private var conversationListener: ListenerRegistration?
-    private var messageListeners: [String: ListenerRegistration] = [:]
+    private var conversationListener: ListenerRemovable?
+    private var messageListeners: [String: ListenerRemovable] = [:]
     
     private init() {}
     
@@ -25,7 +23,7 @@ class MessagesManager: ObservableObject {
         conversationListener?.remove()
         
         // Listen to conversations where user is a participant
-        conversationListener = db.collection("conversations")
+        let listener = db.collection("conversations")
             .whereField("participants", arrayContains: userId)
             .order(by: "lastMessageTimestamp", descending: true)
             .addSnapshotListener { [weak self] snapshot, error in
@@ -45,6 +43,24 @@ class MessagesManager: ObservableObject {
                     self.convertDocumentToConversation(doc, currentUserId: userId)
                 }
             }
+        // Wrap the listener to conform to our protocol
+        conversationListener = FirestoreListenerWrapper(listener: listener as AnyObject)
+    }
+    
+    // Wrapper to make Firebase listener conform to our protocol
+    private class FirestoreListenerWrapper: ListenerRemovable {
+        private let listener: AnyObject
+        
+        init(listener: AnyObject) {
+            self.listener = listener
+        }
+        
+        func remove() {
+            // Use performSelector to call remove() if it exists
+            if listener.responds(to: Selector(("remove"))) {
+                _ = listener.perform(Selector(("remove")))
+            }
+        }
     }
     
     /// Create or get conversation between two users
@@ -103,7 +119,6 @@ class MessagesManager: ObservableObject {
                     }
                 }
             }
-        }
     }
     
     /// Fetch user names from Firestore
@@ -135,74 +150,6 @@ class MessagesManager: ObservableObject {
         }
     }
     
-    /// Get or create conversation between two users (simplified version)
-    func getOrCreateConversation(userId1: String, userId2: String, completion: @escaping (String?) -> Void) {
-        // Check if conversation already exists
-        db.collection("conversations")
-            .whereField("participants", arrayContains: userId1)
-            .getDocuments { [weak self] snapshot, error in
-                guard let self = self else {
-                    completion(nil)
-                    return
-                }
-                
-                if let error = error {
-                    print("Error checking conversations: \(error.localizedDescription)")
-                    completion(nil)
-                    return
-                }
-                
-                // Find conversation with both users
-                if let existingDoc = snapshot?.documents.first(where: { doc in
-                    let data = doc.data()
-                    let participants = data["participants"] as? [String] ?? []
-                    return participants.contains(userId1) && participants.contains(userId2)
-                }) {
-                    completion(existingDoc.documentID)
-                    return
-                }
-                
-                // Fetch user names and create new conversation
-                self.fetchUserNames(userId1: userId1, userId2: userId2) { name1, name2 in
-                    let conversationData: [String: Any] = [
-                        "participants": [userId1, userId2],
-                        "participantNames": [
-                            userId1: name1,
-                            userId2: name2
-                        ],
-                        "createdAt": Timestamp(date: Date()),
-                        "lastMessage": "",
-                        "lastMessageTimestamp": Timestamp(date: Date()),
-                        "unreadCounts": [
-                            userId1: 0,
-                            userId2: 0
-                        ]
-                    ]
-                    
-                    var ref: DocumentReference?
-                    ref = self.db.collection("conversations").addDocument(data: conversationData) { error in
-                        if let error = error {
-                            print("Error creating conversation: \(error.localizedDescription)")
-                            completion(nil)
-                        } else {
-                            completion(ref?.documentID)
-                        }
-                    }
-                }
-            }
-                
-                var ref: DocumentReference?
-                ref = self.db.collection("conversations").addDocument(data: conversationData) { error in
-                    if let error = error {
-                        print("Error creating conversation: \(error.localizedDescription)")
-                        completion(nil)
-                    } else {
-                        completion(ref?.documentID)
-                    }
-                }
-            }
-    }
-    
     // MARK: - Messages
     
     /// Load messages for a conversation
@@ -213,7 +160,7 @@ class MessagesManager: ObservableObject {
         }
         
         // Listen to messages in real-time
-        let listener = db.collection("conversations")
+        let messageListener = db.collection("conversations")
             .document(conversationId)
             .collection("messages")
             .order(by: "timestamp", descending: false)
@@ -235,7 +182,7 @@ class MessagesManager: ObservableObject {
                 }
             }
         
-        messageListeners[conversationId] = listener
+        messageListeners[conversationId] = FirestoreListenerWrapper(listener: messageListener as AnyObject)
     }
     
     /// Send a message
@@ -373,3 +320,5 @@ class MessagesManager: ObservableObject {
         )
     }
 }
+
+

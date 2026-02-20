@@ -1,5 +1,56 @@
 import Foundation
 
+// MARK: - Response Models
+
+struct AuthResponse: Codable {
+    let token: String?
+    let refreshToken: String?
+    let user: User?
+    let message: String?
+}
+
+struct APIError: Error, Codable {
+    let message: String
+    let code: Int?
+    
+    enum CodingKeys: String, CodingKey {
+        case message
+        case code
+    }
+    
+    static func decodingError(_ error: Error) -> APIError {
+        return APIError(message: "Decoding error: \(error.localizedDescription)", code: nil)
+    }
+    
+    static var unauthorized: APIError {
+        return APIError(message: "Unauthorized", code: 401)
+    }
+    
+    static var noData: APIError {
+        return APIError(message: "No data received", code: nil)
+    }
+    
+    static func encodingError(_ error: Error) -> APIError {
+        return APIError(message: "Encoding error: \(error.localizedDescription)", code: nil)
+    }
+    
+    static var invalidURL: APIError {
+        return APIError(message: "Invalid URL", code: nil)
+    }
+    
+    static func networkError(_ error: Error) -> APIError {
+        return APIError(message: "Network error: \(error.localizedDescription)", code: nil)
+    }
+    
+    static var invalidResponse: APIError {
+        return APIError(message: "Invalid response", code: nil)
+    }
+    
+    static func httpError(statusCode: Int, message: String? = nil) -> APIError {
+        return APIError(message: message ?? "HTTP error: \(statusCode)", code: statusCode)
+    }
+}
+
 /// API Service layer for backend communication
 /// This provides a foundation for integrating with a backend API
 class APIService {
@@ -291,7 +342,7 @@ class APIService {
                 if httpResponse.statusCode == 401 {
                     completion(.failure(.unauthorized))
                 } else {
-                    completion(.failure(.httpError(httpResponse.statusCode)))
+                    completion(.failure(.httpError(statusCode: httpResponse.statusCode)))
                 }
                 return
             }
@@ -306,45 +357,3 @@ class APIService {
     }
 }
 
-// MARK: - Response Models
-
-struct AuthResponse: Codable {
-    let token: String?
-    let refreshToken: String?
-    let user: User?
-    let requires2FA: Bool?
-}
-
-// MARK: - Error Types
-
-enum APIError: Error, LocalizedError {
-    case invalidURL
-    case networkError(Error)
-    case httpError(Int)
-    case unauthorized
-    case decodingError(Error)
-    case encodingError(Error)
-    case noData
-    case invalidResponse
-    
-    var errorDescription: String? {
-        switch self {
-        case .invalidURL:
-            return "Invalid API URL"
-        case .networkError(let error):
-            return "Network error: \(error.localizedDescription)"
-        case .httpError(let code):
-            return "HTTP error: \(code)"
-        case .unauthorized:
-            return "Unauthorized. Please log in again."
-        case .decodingError(let error):
-            return "Failed to decode response: \(error.localizedDescription)"
-        case .encodingError(let error):
-            return "Failed to encode request: \(error.localizedDescription)"
-        case .noData:
-            return "No data received"
-        case .invalidResponse:
-            return "Invalid response from server"
-        }
-    }
-}

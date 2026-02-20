@@ -1,12 +1,15 @@
 import SwiftUI
 
 struct ChatView: View {
+    let conversationId: String?
     let friendId: String
     let friendName: String
     @EnvironmentObject var authManager: AuthenticationManager
     @Environment(\.dismiss) var dismiss
+    @StateObject private var messagesManager = MessagesManager.shared
     @State private var messageText = ""
     @State private var messages: [ChatMessage] = []
+    @State private var currentConversationId: String?
     
     var body: some View {
         NavigationView {
@@ -67,7 +70,11 @@ struct ChatView: View {
                 }
             }
             .onAppear {
+                currentConversationId = conversationId
                 loadMessages()
+            }
+            .onDisappear {
+                messagesManager.removeListeners()
             }
         }
     }
@@ -110,11 +117,11 @@ struct ChatView: View {
             messagesManager.markAsRead(conversationId: existingConversationId, userId: currentUserId)
         } else {
             // Create new conversation
-            messagesManager.getOrCreateConversation(userId1: currentUserId, userId2: friendId) { [weak self] conversationId in
-                guard let self = self, let conversationId = conversationId else { return }
-                self.currentConversationId = conversationId
-                self.messagesManager.loadMessages(conversationId: conversationId)
-                self.messagesManager.markAsRead(conversationId: conversationId, userId: currentUserId)
+            messagesManager.getOrCreateConversation(userId1: currentUserId, userId2: friendId) { conversationId in
+                guard let conversationId = conversationId else { return }
+                currentConversationId = conversationId
+                messagesManager.loadMessages(conversationId: conversationId)
+                messagesManager.markAsRead(conversationId: conversationId, userId: currentUserId)
             }
         }
     }

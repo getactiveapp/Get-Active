@@ -11,6 +11,8 @@
 		2E1AB0CD2F087D79002640A1 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 2E1AB0CC2F087D79002640A1 /* FirebaseCore */; };
 		2E1AB0CF2F087DBB002640A1 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 2E1AB0CE2F087DBB002640A1 /* FirebaseFirestore */; };
 		2E1AB0D32F087E42002640A1 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 2E1AB0D22F087E42002640A1 /* FirebaseStorage */; };
+		2EA0FA442F0B2EFE003902CA /* GoogleService-Info-2.plist in Resources */ = {isa = PBXBuildFile; fileRef = 2EA0FA432F0B2EFE003902CA /* GoogleService-Info-2.plist */; };
+		2EA0FA4C2F0B6BDB003902CA /* FirebaseDatabase in Frameworks */ = {isa = PBXBuildFile; productRef = 2EA0FA4B2F0B6BDB003902CA /* FirebaseDatabase */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -31,6 +33,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		2EA0FA432F0B2EFE003902CA /* GoogleService-Info-2.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info-2.plist"; sourceTree = "<group>"; };
 		2EAE2B7E2EE0AAA10058A5B7 /* Get Active.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Get Active.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2EAE2B8E2EE0AAA50058A5B7 /* Get ActiveTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Get ActiveTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2EAE2B982EE0AAA50058A5B7 /* Get ActiveUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Get ActiveUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -49,6 +52,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2EA0FA4C2F0B6BDB003902CA /* FirebaseDatabase in Frameworks */,
 				2E1AB0CD2F087D79002640A1 /* FirebaseCore in Frameworks */,
 				2E1AB0D32F087E42002640A1 /* FirebaseStorage in Frameworks */,
 				2E1AB0CB2F087D66002640A1 /* FirebaseAuth in Frameworks */,
@@ -83,6 +87,7 @@
 		2EAE2B752EE0AAA10058A5B7 = {
 			isa = PBXGroup;
 			children = (
+				2EA0FA432F0B2EFE003902CA /* GoogleService-Info-2.plist */,
 				2EAE2B802EE0AAA10058A5B7 /* Get Active */,
 				2E1AB0C92F087D66002640A1 /* Frameworks */,
 				2EAE2B7F2EE0AAA10058A5B7 /* Products */,
@@ -123,6 +128,7 @@
 				2E1AB0CC2F087D79002640A1 /* FirebaseCore */,
 				2E1AB0CE2F087DBB002640A1 /* FirebaseFirestore */,
 				2E1AB0D22F087E42002640A1 /* FirebaseStorage */,
+				2EA0FA4B2F0B6BDB003902CA /* FirebaseDatabase */,
 			);
 			productName = "Get Active";
 			productReference = 2EAE2B7E2EE0AAA10058A5B7 /* Get Active.app */;
@@ -220,6 +226,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2EA0FA442F0B2EFE003902CA /* GoogleService-Info-2.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -604,6 +611,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 2E1AB0C42F087590002640A1 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseStorage;
+		};
+		2EA0FA4B2F0B6BDB003902CA /* FirebaseDatabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2E1AB0C42F087590002640A1 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseDatabase;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

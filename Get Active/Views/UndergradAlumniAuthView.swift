@@ -135,34 +135,10 @@ struct UndergradAlumniAuthView: View {
                                 .cornerRadius(12)
                         }
                         
-                        if selectedTab == .signUp {
-                            // Email (Sign Up only)
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Text("Email")
-                                        .font(.system(size: DeviceSize.bodyFontSize, weight: .medium))
-                                        .foregroundColor(.white)
-                                    Text("*")
-                                        .font(.system(size: DeviceSize.bodyFontSize, weight: .medium))
-                                        .foregroundColor(.getActiveRed)
-                                }
-                                
-                                TextField("your.email@example.com", text: $email)
-                                    .font(.system(size: DeviceSize.bodyFontSize))
-                                    .foregroundColor(.white)
-                                    .keyboardType(.emailAddress)
-                                    .autocapitalization(.none)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, DeviceSize.isPad ? 16 : 10)
-                                    .background(Color.gray.opacity(0.2))
-                                    .cornerRadius(12)
-                            }
-                        }
-                        
-                        // Username
+                        // Email (Required for both login and sign-up)
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
-                                Text("Username")
+                                Text("Email")
                                     .font(.system(size: DeviceSize.bodyFontSize, weight: .medium))
                                     .foregroundColor(.white)
                                 Text("*")
@@ -170,14 +146,38 @@ struct UndergradAlumniAuthView: View {
                                     .foregroundColor(.getActiveRed)
                             }
                             
-                            TextField(selectedTab == .login ? "Enter your username" : "Choose a username", text: $username)
+                            TextField(selectedTab == .login ? "your.email@example.com" : "your.email@example.com", text: $email)
                                 .font(.system(size: DeviceSize.bodyFontSize))
                                 .foregroundColor(.white)
+                                .keyboardType(.emailAddress)
                                 .autocapitalization(.none)
                                 .padding(.horizontal, 16)
-                                .padding(.vertical, DeviceSize.isPad ? 16 : 12)
+                                .padding(.vertical, DeviceSize.isPad ? 16 : 10)
                                 .background(Color.gray.opacity(0.2))
                                 .cornerRadius(12)
+                        }
+                        
+                        // Username (Sign-up only - for custom display name)
+                        if selectedTab == .signUp {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Text("Username")
+                                        .font(.system(size: DeviceSize.bodyFontSize, weight: .medium))
+                                        .foregroundColor(.white)
+                                    Text("*")
+                                        .font(.system(size: DeviceSize.bodyFontSize, weight: .medium))
+                                        .foregroundColor(.getActiveRed)
+                                }
+                                
+                                TextField("Choose a username", text: $username)
+                                    .font(.system(size: DeviceSize.bodyFontSize))
+                                    .foregroundColor(.white)
+                                    .autocapitalization(.none)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, DeviceSize.isPad ? 16 : 12)
+                                    .background(Color.gray.opacity(0.2))
+                                    .cornerRadius(12)
+                            }
                         }
                         
                         // Password
@@ -207,6 +207,7 @@ struct UndergradAlumniAuthView: View {
                 
                 // Action Button
                 Button(action: {
+                    print("🔵 Undergrad/Alumni button tapped. Selected tab: \(selectedTab)")
                     handleAuth()
                 }) {
                     Text(selectedTab == .login ? "Log In" : "Sign Up")
@@ -214,11 +215,11 @@ struct UndergradAlumniAuthView: View {
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .frame(height: DeviceSize.isPad ? 60 : 50)
-                        .background(Color.getActiveRed)
+                        .background(isFormValid ? Color.getActiveRed : Color.gray.opacity(0.3))
                         .cornerRadius(12)
                 }
                 .disabled(isLoading)
-                .opacity(isLoading ? 0.6 : 1.0)
+                .opacity((isLoading || !isFormValid) ? 0.6 : 1.0)
                 .padding(.horizontal, DeviceSize.horizontalPadding)
                 .padding(.top, DeviceSize.isPad ? 20 : 6)
                 .padding(.bottom, DeviceSize.isPad ? 30 : 16)
@@ -233,6 +234,24 @@ struct UndergradAlumniAuthView: View {
             TwoFactorAuthView()
                 .environmentObject(authManager)
         }
+        .onChange(of: authManager.isAuthenticated) { isAuthenticated in
+            // Auto-dismiss when authentication succeeds
+            if isAuthenticated {
+                dismiss()
+            }
+        }
+    }
+    
+    private var isFormValid: Bool {
+        if selectedTab == .login {
+            // Login: need email and password
+            return !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !password.isEmpty
+        } else {
+            // Sign-up: need email, username, and password
+            let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+            return !trimmedEmail.isEmpty && !trimmedUsername.isEmpty && !password.isEmpty
+        }
     }
     
     private func clearFields() {
@@ -244,37 +263,81 @@ struct UndergradAlumniAuthView: View {
     }
     
     private func handleAuth() {
+        print("🔵 handleAuth called. Selected tab: \(selectedTab)")
+        
+        // Check form validity first and show error if invalid
+        if !isFormValid {
+            if selectedTab == .login {
+                if email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    errorMessage = "Please enter your email"
+                } else if password.isEmpty {
+                    errorMessage = "Please enter your password"
+                }
+            } else {
+                let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+                let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+                
+                if trimmedEmail.isEmpty {
+                    errorMessage = "Please enter your email"
+                } else if trimmedUsername.isEmpty {
+                    errorMessage = "Please enter a username"
+                } else if password.isEmpty {
+                    errorMessage = "Please enter a password"
+                }
+            }
+            showingError = true
+            print("❌ Form validation failed")
+            return
+        }
+        
         isLoading = true
         errorMessage = nil
         
         if selectedTab == .login {
-            authManager.login(username: username, password: password, university: university.isEmpty ? nil : university) { success, error in
-                isLoading = false
-                if success {
-                    dismiss()
-                } else if error == "2FA_REQUIRED" {
-                    // Show 2FA screen
-                    showing2FA = true
-                } else {
-                    errorMessage = error ?? "Login failed"
-                    showingError = true
+            // Use email for login (not username)
+            let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+            print("📝 Undergrad/Alumni login with email: \(trimmedEmail)")
+            
+            authManager.login(username: trimmedEmail, password: password, university: university.isEmpty ? nil : university) { success, error in
+                DispatchQueue.main.async {
+                    self.isLoading = false
+                    if success {
+                        print("✅ Undergrad/Alumni login successful")
+                        self.dismiss()
+                    } else if error == "2FA_REQUIRED" {
+                        // Show 2FA screen
+                        self.showing2FA = true
+                    } else {
+                        let errorMsg = error ?? "Login failed"
+                        print("❌ Login error: \(errorMsg)")
+                        self.errorMessage = errorMsg
+                        self.showingError = true
+                    }
                 }
             }
         } else {
-            authManager.signUp(email: email, username: username, password: password, university: university.isEmpty ? nil : university, accountType: .undergradAlumni) { success, error in
-                isLoading = false
-                if success {
-                    dismiss()
-                } else {
-                    errorMessage = error ?? "Sign up failed"
-                    showingError = true
+            // Sign-up
+            let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            print("📝 Undergrad/Alumni sign-up with email: \(trimmedEmail), username: \(trimmedUsername)")
+            
+            authManager.signUp(email: trimmedEmail, username: trimmedUsername, password: password, university: university.isEmpty ? nil : university, accountType: .undergradAlumni) { success, error in
+                DispatchQueue.main.async {
+                    self.isLoading = false
+                    if success {
+                        print("✅ Undergrad/Alumni sign-up successful - automatically navigating to Home Screen")
+                        // Dismiss auth view - ContentView will automatically show MainTabView
+                        // since isAuthenticated is now true and pendingActiveMemberPayment is false
+                        self.dismiss()
+                    } else {
+                        let errorMsg = error ?? "Sign up failed"
+                        print("❌ Sign-up error: \(errorMsg)")
+                        self.errorMessage = errorMsg
+                        self.showingError = true
+                    }
                 }
             }
         }
     }
-}
-
-#Preview {
-    UndergradAlumniAuthView()
-        .environmentObject(AuthenticationManager())
 }

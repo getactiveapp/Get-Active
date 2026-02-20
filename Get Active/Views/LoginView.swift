@@ -102,9 +102,31 @@ struct LoginView: View {
         }
         .fullScreenCover(isPresented: $showingActiveMemberAuth) {
             ActiveMemberAuthView()
+                .environmentObject(authManager)
         }
         .fullScreenCover(isPresented: $showingUndergradAlumniAuth) {
             UndergradAlumniAuthView()
+                .environmentObject(authManager)
+        }
+        .onChange(of: authManager.isAuthenticated) { isAuthenticated in
+            // Auto-dismiss auth views when user becomes authenticated
+            // BUT only dismiss if we're not in Active Member sign-up flow
+            // Active Member sign-up needs to show application and payment screens first
+            if isAuthenticated {
+                // Check if current user is Active Member - if so, don't auto-dismiss
+                // Let ActiveMemberAuthView handle its own dismissal after payment
+                if let currentUser = authManager.currentUser,
+                   currentUser.accountType == .activeMember,
+                   showingActiveMemberAuth {
+                    print("🔵 LoginView: Active Member sign-up - keeping auth view open for application/payment")
+                    // Don't dismiss - let ActiveMemberAuthView handle it
+                    return
+                }
+                
+                // For login or Undergrad/Alumni sign-up, dismiss normally
+                showingActiveMemberAuth = false
+                showingUndergradAlumniAuth = false
+            }
         }
     }
 }

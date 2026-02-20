@@ -186,13 +186,14 @@ struct AnalyticsView: View {
                 }
             }
         }
-        .onAppear {
-            // Initialize view counts for user events
-            for event in userEvents {
-                if analyticsManager.viewCounts[event.id] == nil {
-                    // Simulate some views based on likes and attendees for demo
-                    let estimatedViews = max(event.likedBy.count * 5, event.attending.count * 8, 10)
-                    analyticsManager.viewCounts[event.id] = estimatedViews
+        .task {
+            // Initialize view counts for user events asynchronously to prevent freezing
+            await MainActor.run {
+                for event in userEvents {
+                    if analyticsManager.viewCounts[event.id] == nil {
+                        // Initialize view count from Firebase if available, otherwise start at 0
+                        analyticsManager.viewCounts[event.id] = 0
+                    }
                 }
             }
         }

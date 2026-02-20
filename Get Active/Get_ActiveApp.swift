@@ -1,4 +1,5 @@
 import SwiftUI
+import FirebaseCore
 
 @main
 struct Get_ActiveApp: App {
@@ -6,6 +7,14 @@ struct Get_ActiveApp: App {
     @StateObject private var eventManager = EventManager()
     
     init() {
+        // Initialize Firebase FIRST before anything else
+        if FirebaseApp.app() == nil {
+            FirebaseApp.configure()
+            print("✅ Firebase initialized in app startup")
+        } else {
+            print("✅ Firebase already initialized")
+        }
+        
         // Configure email service automatically on app startup
         configureEmailService()
         
@@ -33,6 +42,10 @@ struct Get_ActiveApp: App {
         
         // Priority 1: Check EmailConfig file (for local development)
         if let configKey = EmailConfig.sendGridAPIKey, !configKey.isEmpty {
+            print("📧 Configuring email service from EmailConfig.swift")
+            print("   API Key: \(String(configKey.prefix(10)))...\(String(configKey.suffix(5)))")
+            print("   From Email: \(EmailConfig.fromEmail)")
+            print("   From Name: \(EmailConfig.fromName)")
             emailService.configure(
                 provider: .sendGrid,
                 apiKey: configKey,
@@ -40,12 +53,13 @@ struct Get_ActiveApp: App {
                 fromName: EmailConfig.fromName
             )
             print("✅ Email service configured from EmailConfig.swift")
+            print("   Email service isConfigured: \(emailService.isConfigured)")
             return
         }
         
         // Priority 2: Try to configure from environment variables
         if let sendGridKey = ProcessInfo.processInfo.environment["SENDGRID_API_KEY"], !sendGridKey.isEmpty {
-            let fromEmail = ProcessInfo.processInfo.environment["FROM_EMAIL"] ?? "noreply@getactive.app"
+            let fromEmail = ProcessInfo.processInfo.environment["FROM_EMAIL"] ?? "GetActive.engage@gmail.com"
             let fromName = ProcessInfo.processInfo.environment["FROM_NAME"] ?? "Get Active"
             
             emailService.configure(
@@ -59,7 +73,7 @@ struct Get_ActiveApp: App {
         }
         
         if let mailgunKey = ProcessInfo.processInfo.environment["MAILGUN_API_KEY"], !mailgunKey.isEmpty {
-            let fromEmail = ProcessInfo.processInfo.environment["FROM_EMAIL"] ?? "noreply@getactive.app"
+            let fromEmail = ProcessInfo.processInfo.environment["FROM_EMAIL"] ?? "GetActive.engage@gmail.com"
             let fromName = ProcessInfo.processInfo.environment["FROM_NAME"] ?? "Get Active"
             
             emailService.configure(
@@ -77,7 +91,7 @@ struct Get_ActiveApp: App {
             // Keychain has the key, but we need to determine provider
             // Default to SendGrid if key starts with SG.
             let provider: EmailService.Provider = savedKey.hasPrefix("SG.") ? .sendGrid : .sendGrid
-            let fromEmail = ProcessInfo.processInfo.environment["FROM_EMAIL"] ?? "noreply@getactive.app"
+            let fromEmail = ProcessInfo.processInfo.environment["FROM_EMAIL"] ?? "GetActive.engage@gmail.com"
             let fromName = ProcessInfo.processInfo.environment["FROM_NAME"] ?? "Get Active"
             
             emailService.configure(
@@ -96,7 +110,7 @@ struct Get_ActiveApp: App {
     
     /// Automatically configure OpenAI API key from config file or environment
     private func configureOpenAI() {
-        let chatManager = AIChatManager.shared
+        let chatManager = AIChatManager()
         
         // Check if already configured (has API key in Keychain)
         if let existingKey = SecureKeyManager.shared.getOpenAIAPIKey(), !existingKey.isEmpty {

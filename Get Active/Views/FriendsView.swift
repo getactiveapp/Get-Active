@@ -16,32 +16,97 @@ struct FriendsView: View {
     @State private var selectedFriend: Friend?
     @State private var showingFriendProfile = false
     @State private var showingChat = false
+    @State private var allFriends: [Friend] = []
+    @State private var friendRequests: [Friend] = []
+    @State private var suggestions: [Friend] = []
+    @State private var isLoading = false
     
-    // Sample friend data - in a real app, this would come from a database
-    private var allFriends: [Friend] {
-        [
-            Friend(id: "friend1", name: "Ray", university: "Central State University", mutualFriends: 4, isOnline: true),
-            Friend(id: "friend2", name: "Isabella", university: "Central State University", mutualFriends: 9, isOnline: true),
-            Friend(id: "friend3", name: "Dj", university: "Central State University", mutualFriends: 3, isOnline: false),
-            Friend(id: "friend4", name: "Stacy", university: "Central State University", mutualFriends: 7, isOnline: true),
-            Friend(id: "friend5", name: "Marcus", university: "Central State University", mutualFriends: 2, isOnline: false)
-        ]
+    // Load real friends from Firebase
+    private func loadFriends() {
+        guard let userId = authManager.currentUser?.id else {
+            allFriends = []
+            friendRequests = []
+            suggestions = []
+            return
+        }
+        
+        isLoading = true
+        
+        // Load user's friends from Firestore
+        FirebaseService.shared.getUser(uid: userId) { result in
+            DispatchQueue.main.async {
+                self.isLoading = false
+                switch result {
+                case .success(let user):
+                    // Load friend details
+                    self.loadFriendDetails(friendIds: user.friends)
+                    // Load friend requests (would need a separate collection or field)
+                    self.loadFriendRequests(userId: userId)
+                    // Load suggestions (would need algorithm or separate query)
+                    self.loadSuggestions(userId: userId)
+                case .failure(let error):
+                    print("Error loading friends: \(error.localizedDescription)")
+                    self.allFriends = []
+                    self.friendRequests = []
+                    self.suggestions = []
+                }
+            }
+        }
     }
     
-    private var friendRequests: [Friend] {
-        [
-            Friend(id: "request1", name: "Alex", university: "Central State University", mutualFriends: 5, isOnline: false),
-            Friend(id: "request2", name: "Jordan", university: "Central State University", mutualFriends: 3, isOnline: true)
-        ]
+    private func loadFriendDetails(friendIds: [String]) {
+        // Load details for each friend
+        var loadedFriends: [Friend] = []
+        let group = DispatchGroup()
+        
+        for friendId in friendIds {
+            group.enter()
+            FirebaseService.shared.getUser(uid: friendId) { result in
+                defer { group.leave() }
+                switch result {
+                case .success(let user):
+                    // Check online status from Realtime Database
+                    RealtimeDatabaseService.shared.observeUserStatus(userId: friendId) { isOnline, _ in
+                        DispatchQueue.main.async {
+                            let friend = Friend(
+                                id: user.id,
+                                name: user.name,
+                                university: user.university,
+                                mutualFriends: self.calculateMutualFriends(currentUserId: self.authManager.currentUser?.id ?? "", friendId: friendId),
+                                isOnline: isOnline
+                            )
+                            loadedFriends.append(friend)
+                        }
+                    }
+                case .failure:
+                    break
+                }
+            }
+        }
+        
+        group.notify(queue: .main) {
+            self.allFriends = loadedFriends
+        }
     }
     
-    private var suggestions: [Friend] {
-        [
-            Friend(id: "suggest1", name: "Taylor", university: "Central State University", mutualFriends: 6, isOnline: true),
-            Friend(id: "suggest2", name: "Morgan", university: "Central State University", mutualFriends: 4, isOnline: false),
-            Friend(id: "suggest3", name: "Casey", university: "Central State University", mutualFriends: 8, isOnline: true),
-            Friend(id: "suggest4", name: "Riley", university: "Central State University", mutualFriends: 2, isOnline: false)
-        ]
+    private func loadFriendRequests(userId: String) {
+        // Load friend requests from Firestore
+        // This would require a friendRequests collection or field
+        // For now, set to empty - implement when friend request system is ready
+        friendRequests = []
+    }
+    
+    private func loadSuggestions(userId: String) {
+        // Load friend suggestions from Firestore
+        // This would require an algorithm or separate query
+        // For now, set to empty - implement when suggestion system is ready
+        suggestions = []
+    }
+    
+    private func calculateMutualFriends(currentUserId: String, friendId: String) -> Int {
+        // Calculate mutual friends from Firestore
+        // For now, return 0 - implement when friend system is ready
+        return 0
     }
     
     private var displayedFriends: [Friend] {
@@ -228,16 +293,7 @@ struct FriendsView: View {
         }
         .navigationBarHidden(true)
         .onAppear {
-            // When the Requests tab is viewed and there are friend requests,
-            // send notifications for each incoming friend request (simulating receiving them)
-            sendFriendRequestNotificationsIfNeeded()
-        }
-        .onChange(of: selectedTab) { _, newTab in
-            // When switching to Requests tab and there are friend requests,
-            // send notifications for incoming friend requests
-            if newTab == .requests {
-                sendFriendRequestNotificationsIfNeeded()
-            }
+            loadFriends()
         }
         .sheet(item: $selectedFriend) { friend in
             NavigationView {
@@ -271,22 +327,7 @@ struct FriendsView: View {
         }
     }
     
-    private func sendFriendRequestNotificationsIfNeeded() {
-        // When viewing the Requests tab and there are friend requests,
-        // send notifications for each incoming friend request (simulating receiving them)
-        if selectedTab == .requests && !friendRequests.isEmpty {
-            guard let currentUserId = authManager.currentUser?.id else { return }
-            
-            for request in friendRequests {
-                // Only send notification if we haven't already processed this request
-                // In a real app, you'd track which requests have been notified
-                NotificationManager.shared.sendFriendRequestNotification(
-                    fromUserName: request.name,
-                    toUserId: currentUserId
-                )
-            }
-        }
-    }
+    // Removed sendFriendRequestNotificationsIfNeeded() - notifications handled by Firebase
 }
 
 struct Friend: Identifiable {

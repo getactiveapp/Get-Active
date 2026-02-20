@@ -145,3 +145,7 @@ struct EventRatingView: View {
     }
 }
 
+
+
+
+

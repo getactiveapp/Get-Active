@@ -189,3 +189,7 @@ struct NotificationInfoRow: View {
         .environmentObject(AuthenticationManager())
         .environmentObject(EventManager())
 }
+
+
+
+

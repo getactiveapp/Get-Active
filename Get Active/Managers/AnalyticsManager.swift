@@ -23,7 +23,10 @@ class AnalyticsManager: ObservableObject {
                 ratings: ratings
             )
             
-            analytics[eventId] = newAnalytics
+            // Update published property asynchronously to avoid publishing during view updates
+            DispatchQueue.main.async { [weak self] in
+                self?.analytics[eventId] = newAnalytics
+            }
             return newAnalytics
         }
         
@@ -43,7 +46,10 @@ class AnalyticsManager: ObservableObject {
             ratings: []
         )
         
-        analytics[eventId] = newAnalytics
+        // Update published property asynchronously to avoid publishing during view updates
+        DispatchQueue.main.async { [weak self] in
+            self?.analytics[eventId] = newAnalytics
+        }
         return newAnalytics
     }
     
@@ -112,7 +118,11 @@ class AnalyticsManager: ObservableObject {
     }
     
     func updateViews(for eventId: String) {
-        viewCounts[eventId] = (viewCounts[eventId] ?? 0) + 1
+        // Update published property asynchronously to avoid publishing during view updates
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.viewCounts[eventId] = (self.viewCounts[eventId] ?? 0) + 1
+        }
     }
     
     func getTotalAnalytics(for userId: String, events: [Event]) -> EventAnalytics {

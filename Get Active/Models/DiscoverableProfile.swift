@@ -21,3 +21,7 @@ struct DiscoverableProfile: Identifiable, Codable {
         self.interests = interests
     }
 }
+
+
+
+

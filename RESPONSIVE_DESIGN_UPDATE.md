@@ -112,3 +112,7 @@ The app will automatically adapt to Mac when running on Mac Catalyst.
 - Add support for iPad split-screen multitasking
 - Optimize for Mac window resizing
 - Add accessibility size category support
+
+
+
+

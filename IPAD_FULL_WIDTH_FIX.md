@@ -39,3 +39,7 @@ The app now:
 
 The app should now look perfect on your iPad and use the entire screen! 🎉
 
+
+
+
+

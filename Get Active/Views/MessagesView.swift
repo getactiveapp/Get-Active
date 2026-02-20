@@ -3,28 +3,12 @@ import SwiftUI
 struct MessagesView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authManager: AuthenticationManager
+    @StateObject private var messagesManager = MessagesManager.shared
     @State private var selectedChat: ChatConversation?
     
-    // Sample conversations - in a real app, this would come from a messages manager
+    // Use real conversations from MessagesManager
     private var conversations: [ChatConversation] {
-        [
-            ChatConversation(
-                id: "1",
-                friendId: "friend1",
-                friendName: "Ray",
-                lastMessage: "Hey, are you going to the music festival?",
-                timestamp: Date().addingTimeInterval(-3600),
-                unreadCount: 2
-            ),
-            ChatConversation(
-                id: "2",
-                friendId: "friend2",
-                friendName: "Isabella",
-                lastMessage: "Thanks for the event recommendation!",
-                timestamp: Date().addingTimeInterval(-7200),
-                unreadCount: 0
-            )
-        ]
+        messagesManager.conversations
     }
     
     var body: some View {
@@ -75,6 +59,7 @@ struct MessagesView: View {
             .sheet(item: $selectedChat) { conversation in
                 ChatView(conversationId: conversation.id, friendId: conversation.friendId, friendName: conversation.friendName)
                     .environmentObject(authManager)
+                    .environmentObject(messagesManager)
             }
             .onAppear {
                 if let userId = authManager.currentUser?.id {

@@ -347,8 +347,10 @@ struct EventPostingView: View {
         // Upload images to Firebase Storage if using Firebase
         if eventManager.useFirebase {
             uploadEventImagesAndCreateEvent(newEvent, imageNames: imageNames)
+            print("✅ This worked.")
         } else {
             // Local storage
+            print("❌ This did not worked.")
             eventManager.events.append(newEvent)
             DispatchQueue.main.async {
                 eventManager.objectWillChange.send()
@@ -367,6 +369,7 @@ struct EventPostingView: View {
         // Upload images to Firebase Storage
         let fileManager = FileManager.default
         let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        print(documentsPath)
         var uploadedImageUrls: [String] = []
         var uploadCount = 0
         
@@ -384,6 +387,7 @@ struct EventPostingView: View {
                 switch result {
                 case .success(let url):
                     uploadedImageUrls.append(url)
+                    print("Something uploaded.")
                 case .failure(let error):
                     print("Error uploading image: \(error.localizedDescription)")
                 }
@@ -399,17 +403,17 @@ struct EventPostingView: View {
     }
     
     private func createEventInFirebase(_ event: Event) {
-        FirebaseService.shared.createEvent(event) { [weak self] result in
+        FirebaseService.shared.createEvent(event) { result in
             DispatchQueue.main.async {
                 switch result {
                 case .success(let eventId):
                     print("✅ Event created in Firebase with ID: \(eventId)")
-                    self?.dismiss()
+                    dismiss()
                 case .failure(let error):
                     print("❌ Error creating event: \(error.localizedDescription)")
                     // Show error to user
                     // For now, just dismiss - in production, show alert
-                    self?.dismiss()
+                    dismiss()
                 }
             }
         }

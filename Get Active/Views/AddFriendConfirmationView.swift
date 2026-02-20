@@ -86,3 +86,7 @@ struct AddFriendConfirmationView: View {
 #Preview {
     AddFriendConfirmationView(friendName: "Sarah Johnson", isPresented: .constant(true))
 }
+
+
+
+

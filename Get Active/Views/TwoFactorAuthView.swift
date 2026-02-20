@@ -9,7 +9,7 @@ struct TwoFactorAuthView: View {
     @State private var errorMessage: String?
     @State private var showingError = false
     @State private var codeSent = false
-    @State private var sentCode: String? // For demo - remove in production
+    @State private var userEmail: String = ""
     
     var body: some View {
         ZStack {
@@ -50,11 +50,26 @@ struct TwoFactorAuthView: View {
                 .padding(.top, DeviceSize.isPad ? 20 : 10)
                 
                 // Subtitle
-                HStack {
+                VStack(alignment: .leading, spacing: 8) {
+                    if codeSent {
+                        HStack(spacing: 8) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Verification code sent!")
+                                .font(.system(size: DeviceSize.isPad ? 20 : 14, weight: .semibold))
+                                .foregroundColor(.green)
+                        }
+                    }
+                    
                     Text("Enter the verification code sent to your email")
                         .font(.system(size: DeviceSize.isPad ? 20 : 14, weight: .regular))
                         .foregroundColor(.white.opacity(0.8))
-                    Spacer()
+                    
+                    if !userEmail.isEmpty {
+                        Text(userEmail)
+                            .font(.system(size: DeviceSize.isPad ? 18 : 14, weight: .medium))
+                            .foregroundColor(.getActiveRed)
+                    }
                 }
                 .padding(.horizontal, DeviceSize.horizontalPadding)
                 .padding(.top, 8)
@@ -77,23 +92,6 @@ struct TwoFactorAuthView: View {
                         .background(Color.gray.opacity(0.2))
                         .cornerRadius(12)
                         .frame(maxWidth: 200)
-                    
-                    // Debug mode: Show code if email fails (only in DEBUG builds)
-                    #if DEBUG
-                    if let demoCode = sentCode {
-                        VStack(spacing: 8) {
-                            Text("Debug Code (email failed):")
-                                .font(.system(size: 12, weight: .regular))
-                                .foregroundColor(.orange)
-                            Text(demoCode)
-                                .font(.system(size: 20, weight: .bold))
-                                .foregroundColor(.getActiveRed)
-                        }
-                        .padding()
-                        .background(Color.gray.opacity(0.1))
-                        .cornerRadius(8)
-                    }
-                    #endif
                     
                     // Resend Code Button
                     Button(action: {
@@ -128,7 +126,13 @@ struct TwoFactorAuthView: View {
                 .padding(.bottom, DeviceSize.isPad ? 30 : 20)
             }
         }
-        .onAppear {
+        .task {
+            // Get user email on appear
+            if userEmail.isEmpty {
+                userEmail = authManager.pending2FAEmail ?? authManager.currentUser?.email ?? ""
+            }
+            
+            // Automatically send code when view appears
             if !codeSent {
                 sendCode()
             }
@@ -142,19 +146,23 @@ struct TwoFactorAuthView: View {
     
     private func sendCode() {
         isSendingCode = true
-        authManager.send2FACode { success, code in
-            isSendingCode = false
-            if success {
-                codeSent = true
-                // Only store code in DEBUG mode if email service failed
-                #if DEBUG
-                if let debugCode = code {
-                    sentCode = debugCode
+        errorMessage = nil
+        
+        // Get user email for display
+        if userEmail.isEmpty {
+            userEmail = authManager.pending2FAEmail ?? authManager.currentUser?.email ?? ""
+        }
+        
+        authManager.send2FACode { success, errorMessage in
+            DispatchQueue.main.async {
+                isSendingCode = false
+                if success {
+                    codeSent = true
+                    // Code is sent via email - never display it on screen
+                } else {
+                    self.errorMessage = errorMessage ?? "Failed to send verification code. Please check your email address and try again."
+                    showingError = true
                 }
-                #endif
-            } else {
-                errorMessage = code ?? "Failed to send verification code"
-                showingError = true
             }
         }
     }
@@ -166,19 +174,16 @@ struct TwoFactorAuthView: View {
         errorMessage = nil
         
         authManager.verify2FA(code: code) { success, error in
-            isLoading = false
-            if success {
-                dismiss()
-            } else {
-                errorMessage = error ?? "Invalid verification code"
-                showingError = true
-                code = "" // Clear code on error
+            DispatchQueue.main.async {
+                isLoading = false
+                if success {
+                    dismiss()
+                } else {
+                    errorMessage = error ?? "Invalid verification code. Please check the code sent to your email and try again."
+                    showingError = true
+                    code = "" // Clear code on error for security
+                }
             }
         }
     }
-}
-
-#Preview {
-    TwoFactorAuthView()
-        .environmentObject(AuthenticationManager())
 }

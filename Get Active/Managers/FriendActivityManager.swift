@@ -1,37 +1,47 @@
 import Foundation
+import FirebaseFirestore
 
 class FriendActivityManager: ObservableObject {
     @Published var activities: [FriendActivity] = []
     
+    private let db = Firestore.firestore()
+    private var listeners: [ListenerRemovable] = []
+    
     init() {
-        loadSampleActivities()
+        // Activities will be loaded from Firebase when user logs in
     }
     
-    func loadSampleActivities() {
-        let calendar = Calendar.current
+    /// Load friend activities from Firebase
+    func loadActivities(for userId: String) {
+        // Clear existing listeners
+        listeners.forEach { $0.remove() }
+        listeners.removeAll()
         
-        activities = [
-            FriendActivity(
-                id: "1",
-                friendId: "friend1",
-                friendName: "Ray",
-                friendImageName: "ray_profile",
-                activityType: .going,
-                eventId: "event3",
-                eventTitle: "Campus Music Festival",
-                timestamp: calendar.date(byAdding: .hour, value: -2, to: Date()) ?? Date()
-            ),
-            FriendActivity(
-                id: "2",
-                friendId: "friend2",
-                friendName: "Isabella",
-                friendImageName: "isabella_profile",
-                activityType: .liked,
-                eventId: "event4",
-                eventTitle: "Career Fair",
-                timestamp: calendar.date(byAdding: .hour, value: -5, to: Date()) ?? Date()
-            )
-        ]
+        // Get user's friends list
+        db.collection("users").document(userId).getDocument { [weak self] document, error in
+            guard let self = self,
+                  let data = document?.data(),
+                  let friendIds = data["friends"] as? [String] else {
+                self?.activities = []
+                return
+            }
+            
+            // Load activities for each friend
+            for friendId in friendIds {
+                self.loadActivitiesForFriend(friendId: friendId)
+            }
+        }
+    }
+    
+    private func loadActivitiesForFriend(friendId: String) {
+        // Listen to events this friend is attending or has liked
+        // This would require tracking friend interactions in Firestore
+        // For now, activities will be empty until real data is available
+    }
+    
+    func removeListeners() {
+        listeners.forEach { $0.remove() }
+        listeners.removeAll()
     }
 }
 

@@ -205,7 +205,7 @@ struct FriendFinderView: View {
             }
         }
         .onAppear {
-            loadSampleProfiles()
+            loadRealProfiles()
             extractAvailableFilters()
         }
         .sheet(isPresented: $showingProfileDetail) {
@@ -350,49 +350,47 @@ struct FriendFinderView: View {
         rotationAngle = 0
     }
     
-    private func loadSampleProfiles() {
-        allProfiles = [
-            DiscoverableProfile(
-                name: "Sarah Johnson",
-                major: "Computer Science",
-                location: "Central State University",
-                year: "2026",
-                bio: "Computer Science major passionate about AI and machine learning. Love hiking and photography in my free time!",
-                interests: ["AI", "Photography", "Hiking", "Music"]
-            ),
-            DiscoverableProfile(
-                name: "Michael Chen",
-                major: "Business Administration",
-                location: "Central State University",
-                year: "2025",
-                bio: "Business major with a passion for entrepreneurship. Love networking and building connections!",
-                interests: ["Business", "Networking", "Sports", "Travel"]
-            ),
-            DiscoverableProfile(
-                name: "Emily Rodriguez",
-                major: "Psychology",
-                location: "Central State University",
-                year: "2026",
-                bio: "Psychology student interested in mental health advocacy. Enjoy yoga and reading in my spare time.",
-                interests: ["Mental Health", "Yoga", "Reading", "Art"]
-            ),
-            DiscoverableProfile(
-                name: "David Williams",
-                major: "Engineering",
-                location: "Central State University",
-                year: "2024",
-                bio: "Engineering student passionate about innovation and technology. Love working on projects and coding!",
-                interests: ["Engineering", "Technology", "Coding", "Gaming"]
-            ),
-            DiscoverableProfile(
-                name: "Jessica Taylor",
-                major: "Communications",
-                location: "Central State University",
-                year: "2025",
-                bio: "Communications major with a love for storytelling and media. Enjoy writing and social media marketing.",
-                interests: ["Writing", "Media", "Social Media", "Photography"]
-            )
-        ]
+    private func loadRealProfiles() {
+        // Load discoverable profiles from Firestore
+        guard let currentUserId = authManager.currentUser?.id else {
+            allProfiles = []
+            return
+        }
+        
+        // Query all users (can be filtered later by discoverable profile settings)
+        FirebaseService.shared.searchUsers(query: "") { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let users):
+                    // Convert users to discoverable profiles
+                    allProfiles = users.compactMap { user -> DiscoverableProfile? in
+                        // Only include users who are not the current user
+                        guard user.id != currentUserId else {
+                            return nil
+                        }
+                        
+                        // Use user's friendFinderDescription as bio, or fallback to bio
+                        let bio = user.friendFinderDescription.isEmpty ? user.bio : user.friendFinderDescription
+                        
+                        // Parse interests from bio or tags (if available in future)
+                        // For now, use empty interests array - can be populated from user data later
+                        let interests: [String] = []
+                        
+                        return DiscoverableProfile(
+                            name: user.name,
+                            major: "", // Major not in User model yet - can be added later
+                            location: user.university,
+                            year: user.year,
+                            bio: bio,
+                            interests: interests
+                        )
+                    }
+                case .failure(let error):
+                    print("Error loading profiles: \(error.localizedDescription)")
+                    allProfiles = []
+                }
+            }
+        }
     }
 }
 
@@ -974,3 +972,7 @@ struct FriendFinderFilterView: View {
     FriendFinderView()
         .environmentObject(AuthenticationManager())
 }
+
+
+
+

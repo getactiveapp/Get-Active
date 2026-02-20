@@ -43,3 +43,7 @@ Test on:
 
 The app will automatically adapt its layout based on the device type.
 
+
+
+
+

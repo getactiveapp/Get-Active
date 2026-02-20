@@ -10,14 +10,34 @@ struct FriendProfileView: View {
     @State private var showingChat = false
     @State private var showingUnfriendAlert = false
     
+    // Real user data loaded from Firestore
+    @State private var friendUser: User?
+    @State private var isLoadingUser = true
+    @State private var mutualFriends: [User] = []
+    
     // Check if this person is in the user's friends list
     private var isFriend: Bool {
         authManager.currentUser?.friends.contains(friendId) == true
     }
     
-    // Friend data - in a real app, this would come from a user database
+    // Friend data from real user
     private var friendData: FriendData {
-        getFriendData(for: friendId)
+        guard let user = friendUser else {
+            return FriendData(
+                university: "",
+                year: "",
+                bio: "",
+                joinedDate: "",
+                isOnline: false
+            )
+        }
+        return FriendData(
+            university: user.university,
+            year: user.year,
+            bio: user.bio,
+            joinedDate: "Recently", // Could calculate from account creation date if stored
+            isOnline: false // Could implement presence tracking later
+        )
     }
     
     var body: some View {
@@ -39,7 +59,7 @@ struct FriendProfileView: View {
                                         .fill(Color.gray.opacity(0.3))
                                         .frame(width: 120, height: 120)
                                         .overlay(
-                                            Text(String(friendName.prefix(1)))
+                                            Text(String((friendUser?.name ?? friendName).prefix(1)))
                                                 .font(.system(size: 50, weight: .bold))
                                                 .foregroundColor(.white)
                                         )
@@ -267,7 +287,7 @@ struct FriendProfileView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    Text(friendName)
+                    Text(friendUser?.name ?? friendName)
                         .font(.system(size: 18, weight: .bold))
                         .foregroundColor(.white)
                 }
@@ -281,19 +301,86 @@ struct FriendProfileView: View {
                     }
                 }
             }
+            .onAppear {
+                loadFriendUser()
+                loadMutualFriends()
+            }
+            .overlay {
+                if isLoadingUser {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .getActiveRed))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.black.opacity(0.3))
+                }
+            }
             .sheet(isPresented: $showingChat) {
                 NavigationView {
-                    ChatView(conversationId: nil, friendId: friendId, friendName: friendName)
+                    ChatView(conversationId: nil, friendId: friendId, friendName: friendUser?.name ?? friendName)
                         .environmentObject(authManager)
                 }
             }
-            .alert("Unfriend \(friendName)?", isPresented: $showingUnfriendAlert) {
+            .alert("Unfriend \(friendUser?.name ?? friendName)?", isPresented: $showingUnfriendAlert) {
                 Button("Cancel", role: .cancel) { }
                 Button("Unfriend", role: .destructive) {
                     unfriendUser()
                 }
             } message: {
-                Text("Are you sure you want to remove \(friendName) from your friends list?")
+                Text("Are you sure you want to remove \(friendUser?.name ?? friendName) from your friends list?")
+            }
+        }
+    }
+    
+    private func loadFriendUser() {
+        isLoadingUser = true
+        FirebaseService.shared.getUser(uid: friendId) { result in
+            DispatchQueue.main.async {
+                isLoadingUser = false
+                switch result {
+                case .success(let user):
+                    friendUser = user
+                case .failure(let error):
+                    print("❌ Error loading friend user: \(error.localizedDescription)")
+                    friendUser = nil
+                }
+            }
+        }
+    }
+    
+    private func loadMutualFriends() {
+        guard let currentUser = authManager.currentUser else { return }
+        
+        // Get friend's user data to find their friends
+        FirebaseService.shared.getUser(uid: friendId) { result in
+            switch result {
+            case .success(let friend):
+                let friendFriendIds = friend.friends
+                let currentFriendIds = currentUser.friends
+                
+                // Find mutual friends (users in both lists, excluding self)
+                let mutualIds = Set(friendFriendIds)
+                    .intersection(Set(currentFriendIds))
+                    .filter { $0 != currentUser.id && $0 != friendId }
+                
+                // Load full user data for mutual friends
+                var loadedMutualFriends: [User] = []
+                let dispatchGroup = DispatchGroup()
+                
+                for mutualId in mutualIds {
+                    dispatchGroup.enter()
+                    FirebaseService.shared.getUser(uid: mutualId) { result in
+                        if case .success(let user) = result {
+                            loadedMutualFriends.append(user)
+                        }
+                        dispatchGroup.leave()
+                    }
+                }
+                
+                dispatchGroup.notify(queue: .main) {
+                    mutualFriends = loadedMutualFriends
+                }
+                
+            case .failure(let error):
+                print("❌ Error loading mutual friends: \(error.localizedDescription)")
             }
         }
     }
@@ -303,42 +390,55 @@ struct FriendProfileView: View {
     }
     
     private func getMutualFriendsCount() -> Int {
-        guard authManager.currentUser != nil else { return 0 }
-        // In a real app, this would check the friend's friends list
-        // For now, we'll return sample data
-        return 3
+        guard let currentUser = authManager.currentUser,
+              let friendUser = friendUser else { return 0 }
+        
+        // Calculate mutual friends from both users' friend lists
+        let currentUserFriends = Set(currentUser.friends)
+        let friendUserFriends = Set(friendUser.friends)
+        let mutualFriends = currentUserFriends.intersection(friendUserFriends)
+        return mutualFriends.count
     }
     
     private func getMutualFriends() -> [MutualFriend] {
-        // Sample mutual friends - in a real app, this would calculate from both users' friend lists
-        return [
-            MutualFriend(id: "1", name: "Isabella", isOnline: true),
-            MutualFriend(id: "2", name: "Stacy", isOnline: false),
-            MutualFriend(id: "3", name: "Dj", isOnline: true)
-        ]
+        guard let currentUser = authManager.currentUser,
+              let friendUser = friendUser else { return [] }
+        
+        // Calculate mutual friends from both users' friend lists
+        let currentUserFriends = Set(currentUser.friends)
+        let friendUserFriends = Set(friendUser.friends)
+        let mutualFriendIds = currentUserFriends.intersection(friendUserFriends)
+        
+        // Load mutual friend details
+        var mutualFriends: [MutualFriend] = []
+        let group = DispatchGroup()
+        
+        for friendId in mutualFriendIds {
+            group.enter()
+            FirebaseService.shared.getUser(uid: friendId) { result in
+                defer { group.leave() }
+                switch result {
+                case .success(let user):
+                    RealtimeDatabaseService.shared.observeUserStatus(userId: friendId) { isOnline, _ in
+                        DispatchQueue.main.async {
+                            mutualFriends.append(MutualFriend(
+                                id: user.id,
+                                name: user.name,
+                                isOnline: isOnline
+                            ))
+                        }
+                    }
+                case .failure:
+                    break
+                }
+            }
+        }
+        
+        group.wait()
+        return mutualFriends
     }
     
-    private func getFriendData(for friendId: String) -> FriendData {
-        // Sample friend data - in a real app, this would fetch from a user database
-        switch friendId {
-        case "friend1", "ray":
-            return FriendData(
-                university: "Central State University",
-                year: "Junior • 11th Grade",
-                bio: "Music lover and event organizer. Always down for a good time!",
-                joinedDate: "2 years ago",
-                isOnline: true
-            )
-        default:
-            return FriendData(
-                university: "Central State University",
-                year: "Sophomore",
-                bio: "Event enthusiast and campus leader.",
-                joinedDate: "1 year ago",
-                isOnline: false
-            )
-        }
-    }
+    // Removed getFriendData() - using friendUser directly from Firebase
     
     private func unfriendUser() {
         // Remove friend from current user's friends list

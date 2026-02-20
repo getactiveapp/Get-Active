@@ -27,3 +27,36 @@ struct EmailConfig {
         return sendGridAPIKey != nil && !sendGridAPIKey!.isEmpty && sendGridAPIKey != "SG.your-api-key-here"
     }
 }
+
+
+/// Email service configuration
+/// 
+/// INSTRUCTIONS:
+/// 1. Copy this file and rename it to EmailConfig.swift
+/// 2. Add your actual SendGrid API key below
+/// 3. This file is gitignored - your API key will NOT be committed to GitHub
+struct EmailConfig {
+    // MARK: - SendGrid Configuration
+    
+    /// SendGrid API Key
+    /// Get your key from: https://app.sendgrid.com/settings/api_keys
+    /// ⚠️ IMPORTANT: This file is gitignored. Never commit your actual API key!
+    static let sendGridAPIKey: String? = "SG.your-api-key-here"
+    
+    /// From email address (must be verified in SendGrid)
+    static let fromEmail: String = "noreply@getactive.app"
+    
+    /// From name
+    static let fromName: String = "Get Active"
+    
+    // MARK: - Helper
+    
+    /// Check if email is configured
+    static var isConfigured: Bool {
+        return sendGridAPIKey != nil && !sendGridAPIKey!.isEmpty && sendGridAPIKey != "SG.your-api-key-here"
+    }
+}
+
+
+
+

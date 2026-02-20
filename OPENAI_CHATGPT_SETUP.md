@@ -160,3 +160,7 @@ You'll never get the same response twice!
 
 Your Guard chatbot is now ready to provide unlimited, varied responses with complete knowledge of Get Active! 🎉
 
+
+
+
+

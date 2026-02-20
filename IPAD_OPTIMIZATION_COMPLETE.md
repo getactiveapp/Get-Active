@@ -143,3 +143,7 @@ All event lists and cards now use adaptive grid layouts:
 
 The app now looks and feels like it was designed specifically for iPad. All layouts utilize the larger screen space effectively, providing a premium, polished experience that matches Apple's design standards for iPad applications.
 
+
+
+
+

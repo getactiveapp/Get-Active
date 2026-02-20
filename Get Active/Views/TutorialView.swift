@@ -278,3 +278,9 @@ struct TutorialTabView: View {
     TutorialView()
 }
 
+
+
+#Preview {
+    TutorialView()
+}
+

@@ -7,6 +7,9 @@ class AuthenticationManager: ObservableObject {
     @Published var requires2FA: Bool = false
     @Published var pending2FAUserId: String?
     @Published var pending2FAEmail: String?
+    @Published var pendingActiveMemberPayment: Bool = false // Flag to show payment screen for Active Members after sign-up
+    @Published var pendingActiveMemberApplication: Bool = false // Flag to show application screen for Active Members after sign-up
+    private var pendingAuthenticatedUser: User? // Store user after Firebase login, before 2FA
     
     // Configuration: Set to true to use Firebase, false for local storage
     private let useFirebase: Bool = true // Change to false to use local storage
@@ -17,6 +20,7 @@ class AuthenticationManager: ObservableObject {
     private let secureKeyManager = SecureKeyManager.shared
     private let firebaseService = FirebaseService.shared
     private let emailService = EmailService.shared
+    private let realtimeDB = RealtimeDatabaseService.shared
     
     init() {
         // Check for saved login on initialization
@@ -120,17 +124,36 @@ class AuthenticationManager: ObservableObject {
             ]
             
             firebaseService.signUp(email: email, password: password, userData: userData) { [weak self] result in
-                DispatchQueue.main.async {
+                DispatchQueue.main.async(execute: {
                     switch result {
                     case .success(let user):
+                        print("✅ Sign-up successful for user: \(user.username) (\(user.email))")
+                        // Set user and authentication state
                         self?.currentUser = user
                         self?.isAuthenticated = true
                         self?.saveCurrentUserId(user.id)
+                        
+                        // For Active Members, set flag to show application screen first, then payment
+                        // For Undergrad/Alumni, navigate directly to Home (handled by ContentView)
+                        if accountType == .activeMember {
+                            print("🔵 Active Member sign-up - setting pendingActiveMemberApplication flag")
+                            self?.pendingActiveMemberApplication = true
+                            self?.pendingActiveMemberPayment = false
+                        } else {
+                            print("🔵 Undergrad/Alumni sign-up - navigating to Home Screen")
+                            self?.pendingActiveMemberApplication = false
+                            self?.pendingActiveMemberPayment = false
+                        }
+                        
                         completion(true, nil)
                     case .failure(let error):
-                        completion(false, error.localizedDescription)
+                        let errorMessage = error.localizedDescription
+                        print("❌ Sign-up error: \(errorMessage)")
+                        self?.pendingActiveMemberApplication = false
+                        self?.pendingActiveMemberPayment = false
+                        completion(false, errorMessage)
                     }
-                }
+                })
             }
         } else {
             // Local storage signup
@@ -186,18 +209,22 @@ class AuthenticationManager: ObservableObject {
             // Firebase login - try as email first
             if username.contains("@") {
                 firebaseService.signIn(email: username, password: password) { [weak self] result in
-                    DispatchQueue.main.async {
+                    DispatchQueue.main.async(execute: {
                         switch result {
                         case .success(let user):
+                            // Store the authenticated user for use after 2FA
+                            self?.pendingAuthenticatedUser = user
                             // Require 2FA for all users
                             self?.requires2FA = true
                             self?.pending2FAUserId = user.id
                             self?.pending2FAEmail = user.email
                             completion(false, "2FA_REQUIRED")
                         case .failure(let error):
-                            completion(false, error.localizedDescription)
+                            let errorMessage = error.localizedDescription
+                            print("❌ Firebase login error: \(errorMessage)")
+                            completion(false, errorMessage)
                         }
-                    }
+                    })
                 }
             } else {
                 // Username login - need to find email first
@@ -237,16 +264,23 @@ class AuthenticationManager: ObservableObject {
     
     /// Complete login after 2FA verification
     func completeLogin(user: User) {
+        print("✅ Completing login for user: \(user.username) (\(user.email))")
         currentUser = user
         isAuthenticated = true
         saveCurrentUserId(user.id)
         requires2FA = false
         pending2FAUserId = nil
         pending2FAEmail = nil
+        pendingAuthenticatedUser = nil
         
         // Save auth token to Keychain (for future API integration)
         let token = UUID().uuidString
         secureKeyManager.saveAuthToken(token)
+        
+        // Set user as online in Realtime Database (for presence tracking)
+        realtimeDB.setUserOnline(userId: user.id)
+        
+        print("✅ Login completed successfully. User authenticated: \(isAuthenticated)")
     }
     
     /// Verify 2FA code and complete login
@@ -265,6 +299,18 @@ class AuthenticationManager: ObservableObject {
         
         // Get user and complete login
         if useFirebase {
+            // First try to use the pending authenticated user (from login before 2FA)
+            if let pendingUser = pendingAuthenticatedUser {
+                // Clear 2FA code
+                secureKeyManager.delete2FACode()
+                // Complete login with the stored user
+                completeLogin(user: pendingUser)
+                pendingAuthenticatedUser = nil // Clear after use
+                completion(true, nil)
+                return
+            }
+            
+            // Fallback: Try to get current user from Firebase
             firebaseService.getCurrentUser { [weak self] result in
                 DispatchQueue.main.async {
                     switch result {
@@ -273,15 +319,20 @@ class AuthenticationManager: ObservableObject {
                         self?.secureKeyManager.delete2FACode()
                         // Complete login
                         self?.completeLogin(user: user)
+                        self?.pendingAuthenticatedUser = nil // Clear if set
                         completion(true, nil)
                     case .failure(let error):
-                        completion(false, error.localizedDescription)
+                        let errorMessage = error.localizedDescription
+                        print("❌ Error getting current user after 2FA: \(errorMessage)")
+                        completion(false, "Failed to complete login: \(errorMessage)")
                     }
                 }
             }
         } else {
+            // Local storage login
             let users = loadUsers()
             guard let user = users.first(where: { $0.id == userId }) else {
+                print("❌ User not found in local storage: \(userId)")
                 completion(false, "User not found")
                 return
             }
@@ -316,24 +367,37 @@ class AuthenticationManager: ObservableObject {
         }
         
         // Send code via email service
+        print("📧 Sending 2FA code to email: \(userEmail)")
+        print("📧 Email service configured: \(emailService.isConfigured)")
         emailService.send2FACode(to: userEmail, code: code) { result in
             switch result {
             case .success:
-                completion(true, nil) // Don't return code in production
+                print("✅ 2FA code email sent successfully to: \(userEmail)")
+                // Code sent successfully - never return the code to the UI
+                completion(true, nil)
             case .failure(let error):
-                // If email service fails, still save code but log error
-                print("⚠️ Failed to send email: \(error.localizedDescription)")
-                // For development, return code if email fails
-                #if DEBUG
-                completion(true, code) // Only in debug mode
-                #else
-                completion(false, "Failed to send verification code. Please try again.")
-                #endif
+                // If email service fails, log detailed error
+                print("❌ Failed to send 2FA email to \(userEmail): \(error.localizedDescription)")
+                if let nsError = error as NSError? {
+                    print("   Error domain: \(nsError.domain)")
+                    print("   Error code: \(nsError.code)")
+                    if let userInfo = nsError.userInfo as? [String: Any] {
+                        print("   Error details: \(userInfo)")
+                    }
+                }
+                // Never return the code, even in debug mode, for security
+                completion(false, "Failed to send verification code. Please check your email address and try again.")
             }
         }
     }
     
     func logout() {
+        // Set user as offline in Realtime Database before logging out
+        if let userId = currentUser?.id {
+            realtimeDB.setUserOffline(userId: userId)
+            realtimeDB.cleanup()
+        }
+        
         if useFirebase {
             do {
                 try firebaseService.signOut()
@@ -381,7 +445,7 @@ class AuthenticationManager: ObservableObject {
         }
     }
     
-    func updateUser(_ user: User) {
+    func updateUser(_ user: User, completion: @escaping (Bool) -> Void = { _ in }) {
         if useFirebase {
             firebaseService.updateUser(user) { [weak self] result in
                 DispatchQueue.main.async {
@@ -389,8 +453,10 @@ class AuthenticationManager: ObservableObject {
                     case .success:
                         self?.currentUser = user
                         self?.saveCurrentUserId(user.id)
+                        completion(true)
                     case .failure(let error):
                         print("Error updating user: \(error.localizedDescription)")
+                        completion(false)
                     }
                 }
             }
@@ -401,6 +467,9 @@ class AuthenticationManager: ObservableObject {
                 saveUsers(users)
                 currentUser = user
                 saveCurrentUserId(user.id)
+                completion(true)
+            } else {
+                completion(false)
             }
         }
     }
@@ -413,24 +482,9 @@ class AuthenticationManager: ObservableObject {
     }
     
     // Legacy method for backward compatibility
+    // REMOVED: Demo user creation - app now uses real Firebase users only
     func login(accountType: AccountType) {
-        // This is kept for backward compatibility but should not be used
-        // Create a demo user based on account type
-        let demoUser = User(
-            email: "demo@example.com",
-            username: "demo_user",
-            password: "demo",
-            name: "Jalen Martin",
-            university: "Central State University",
-            year: "Senior",
-            profileImageName: nil,
-            bio: "",
-            accountType: accountType,
-            friends: ["friend1", "friend2", "friend3", "friend4"],
-            favoriteEventIds: []
-        )
-        
-        currentUser = demoUser
-        isAuthenticated = true
+        // This method is deprecated - use login(username:password:university:completion:) instead
+        print("⚠️ login(accountType:) is deprecated. Use login(username:password:university:completion:) instead.")
     }
 }
